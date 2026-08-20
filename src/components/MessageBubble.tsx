@@ -1,5 +1,9 @@
 import type { Message } from '../context/AppContext';
 
+let robotImg: string;
+try { robotImg = new URL('../assets/robot.png', import.meta.url).href; }
+catch { robotImg = new URL('../assets/hero.png', import.meta.url).href; }
+
 interface Props { message: Message; }
 
 export default function MessageBubble({ message }: Props) {
@@ -8,15 +12,10 @@ export default function MessageBubble({ message }: Props) {
 
   return (
     <div className={`mb-row${isUser ? ' mb-row--user' : ' mb-row--assistant'}`}>
-      {/* Assistant avatar */}
+      {/* Assistant avatar — robot image */}
       {!isUser && (
         <div className="mb-avatar" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 56 56" fill="none">
-            <rect width="56" height="56" rx="14" fill="white" fillOpacity="0.9"/>
-            <path d="M28 11C28 11 16.5 18 16.5 27C16.5 34.5 22 40 28 42.5C34 40 39.5 34.5 39.5 27C39.5 18 28 11 28 11Z"
-              fill="#2e9b8a" fillOpacity="0.85"/>
-            <path d="M22 27.5L26.5 32L34 22.5" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src={robotImg} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover' }} />
         </div>
       )}
 

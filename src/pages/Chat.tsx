@@ -5,7 +5,6 @@ import MessageBubble, { TypingIndicator } from '../components/MessageBubble';
 import ChatInput from '../components/ChatInput';
 import SafetyChecklist from '../components/SafetyChecklist';
 import VerdictCard from '../components/VerdictCard';
-import Logo from '../components/Logo';
 import { useApp } from '../context/AppContext';
 import { intakeAPI, safetyAPI, pathwayAPI } from '../services/api';
 import type { RedFlagsPayload } from '../services/api';
@@ -323,7 +322,7 @@ export default function Chat() {
 
       {/* Main content */}
       <main style={styles.main} aria-label="Chat area">
-        {/* Top bar — matches reference: avatar + title + action icons */}
+        {/* Top bar */}
         <div style={styles.topBar}>
           <button
             className="chat-action-btn"
@@ -338,20 +337,15 @@ export default function Chat() {
             </svg>
           </button>
 
-          {/* Assistant identity block */}
+          {/* Robot avatar — small */}
           <div style={styles.topBarIdentity}>
-            <div style={styles.topBarAvatarWrap} aria-hidden="true">
-              <svg width="36" height="36" viewBox="0 0 56 56" fill="none">
-                <rect width="56" height="56" rx="14" fill="#f2846b"/>
-                <path d="M28 11C28 11 16.5 18 16.5 27C16.5 34.5 22 40 28 42.5C34 40 39.5 34.5 39.5 27C39.5 18 28 11 28 11Z"
-                  fill="white" fillOpacity="0.92"/>
-                <path d="M22 27.5L26.5 32L34 22.5" stroke="#f2846b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <img src={robotImg} alt="" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover' }} />
               <span style={styles.topBarOnlineDot} aria-hidden="true" />
             </div>
             <div>
               <div style={styles.topBarName}>
-                {activeConversation ? activeConversation.title : 'CarePath Assistant'}
+                {activeConversation ? activeConversation.title : 'New Assessment'}
               </div>
               <div style={styles.topBarSub}>AI Triage Assistant · CarePath</div>
             </div>
@@ -402,13 +396,76 @@ export default function Chat() {
           />
         )}
       </main>
+
+      {/* ── Right Panel (desktop only) ── */}
+      <aside className="chat-right-panel">
+        {/* Emergency notification */}
+        <div className="crp-emergency">
+          <span className="crp-emergency__icon">🔔</span>
+          <div className="crp-emergency__text">
+            <strong>Attention Required</strong>
+            <span>Complete your symptom assessment</span>
+          </div>
+        </div>
+
+        {/* Mini Calendar */}
+        <section className="crp-section crp-section--compact">
+          <RealCalendar appointmentDays={[22, 28]} />
+        </section>
+
+        {/* Care Journey — attractive */}
+        <section className="crp-section crp-section--compact crp-section--journey">
+          <h3 className="crp-section__title">Care Journey</h3>
+          <div className="crp-journey-track">
+            <div className="crp-journey-track__line">
+              <div className="crp-journey-track__fill" style={{ width: '35%' }} />
+            </div>
+            <div className="crp-jnode crp-jnode--done" title="Assessment"><span>✓</span></div>
+            <div className="crp-jnode crp-jnode--active" title="Review"><span className="crp-jnode__pulse" /></div>
+            <div className="crp-jnode" title="Appointment" />
+            <div className="crp-jnode" title="Follow-up" />
+          </div>
+          <div className="crp-journey-labels">
+            <span className="crp-jlabel crp-jlabel--done">Assessment</span>
+            <span className="crp-jlabel crp-jlabel--active">Review</span>
+            <span className="crp-jlabel">Appt</span>
+            <span className="crp-jlabel">Follow-up</span>
+          </div>
+        </section>
+
+        {/* Next Appointment */}
+        <section className="crp-section crp-section--compact">
+          <div className="crp-section__header">
+            <h3 className="crp-section__title">Appointment</h3>
+            <button className="crp-view-all" onClick={() => navigate('/appointments')}>View →</button>
+          </div>
+          <div className="crp-appointment">
+            <div className="crp-appointment__date">
+              <span className="crp-appointment__month">AUG</span>
+              <span className="crp-appointment__day">22</span>
+            </div>
+            <div className="crp-appointment__info">
+              <strong>Dr. Sarah Wilson</strong>
+              <span>Cardiology · 10:30 AM</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Today's Plan */}
+        <section className="crp-section crp-section--compact">
+          <h3 className="crp-section__title">Today</h3>
+          <div className="crp-plan-items">
+            <div className="crp-plan-item crp-plan-item--done"><span className="crp-plan-dot crp-plan-dot--done" />Morning Meds<span className="crp-plan-meta">✓</span></div>
+            <div className="crp-plan-item"><span className="crp-plan-dot" />Evening Meds<span className="crp-plan-meta">8 PM</span></div>
+          </div>
+        </section>
+      </aside>
     </div>
   );
 }
 
-// ── Empty state — matches reference design ──
+// ── Empty state — centered with floating icons ──
 function EmptyState({
-  onSuggestion,
   onNewChat,
 }: {
   onSuggestion: (text: string) => void;
@@ -416,40 +473,76 @@ function EmptyState({
 }) {
   return (
     <div className="ce-root">
-      {/* Robot + floating health icons */}
-      <div className="ce-visual">
-        <img src={robotImg} alt="CarePath AI" className="ce-robot" />
-        {/* Floating icons around robot */}
-        <span className="ce-float-icon ce-float-icon--1">❤️</span>
-        <span className="ce-float-icon ce-float-icon--2">💊</span>
-        <span className="ce-float-icon ce-float-icon--3">📋</span>
-        <span className="ce-float-icon ce-float-icon--4">💬</span>
+      {/* Robot with floating health icons */}
+      <div className="ce-hero">
+        <span className="ce-icon ce-icon--1">❤️</span>
+        <span className="ce-icon ce-icon--2">💊</span>
+        <span className="ce-icon ce-icon--3">📋</span>
+        <span className="ce-icon ce-icon--4">💬</span>
+        <img src={robotImg} alt="CarePath AI" className="ce-hero__robot" />
       </div>
 
       {/* Title */}
       <h2 className="ce-title">CarePath <em>Assistant</em></h2>
       <p className="ce-sub">I'm here to understand your health<br/>and guide you with the right care.</p>
 
-      {/* Quick start section */}
-      <p className="ce-quick-label">Quick start</p>
-      <div className="ce-cards">
-        {SUGGESTION_CARDS.map(s => (
-          <button key={s.text} className="ce-card" onClick={() => onSuggestion(s.text)}>
-            <span className="ce-card__icon">{s.icon}</span>
-            <span className="ce-card__text">{s.text}</span>
-            <span className="ce-card__arrow">›</span>
-          </button>
-        ))}
+      {/* Input display — clickable */}
+      <div className="ce-input-display" onClick={onNewChat} role="button" tabIndex={0} aria-label="Start new chat">
+        <span className="ce-input-display__sparkle">✦✦</span>
+        <span className="ce-input-display__text">Describe how you're feeling or ask anything...</span>
+        <span className="ce-input-display__mic">🎤</span>
       </div>
-
-      {/* Start button */}
-      <button className="ce-start-btn" onClick={onNewChat}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-        Start New Assessment
-      </button>
-
-      <p className="ce-secure">🔒 Your information is secure and confidential.</p>
     </div>
+  );
+}
+
+// ── Real Calendar Component ──
+function RealCalendar({ appointmentDays = [] }: { appointmentDays?: number[] }) {
+  const [month, setMonth] = React.useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  const today = new Date();
+  const year = month.getFullYear();
+  const mo = month.getMonth();
+  const daysInMonth = new Date(year, mo + 1, 0).getDate();
+  const firstDay = new Date(year, mo, 1).getDay();
+  const monthName = month.toLocaleString('default', { month: 'short', year: 'numeric' });
+
+  const prev = () => setMonth(new Date(year, mo - 1, 1));
+  const next = () => setMonth(new Date(year, mo + 1, 1));
+
+  const isToday = (day: number) =>
+    today.getFullYear() === year && today.getMonth() === mo && today.getDate() === day;
+  const hasAppt = (day: number) => appointmentDays.includes(day);
+
+  return (
+    <>
+      <div className="crp-section__header">
+        <h3 className="crp-section__title">{monthName}</h3>
+        <div className="crp-cal-nav">
+          <button className="crp-cal-nav__btn" onClick={prev}>‹</button>
+          <button className="crp-cal-nav__btn" onClick={next}>›</button>
+        </div>
+      </div>
+      <div className="crp-calendar">
+        <div className="crp-cal__header">
+          <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+        </div>
+        <div className="crp-cal__grid">
+          {[...Array(firstDay)].map((_, i) => <span key={`e${i}`} className="crp-cal__day crp-cal__day--empty" />)}
+          {[...Array(daysInMonth)].map((_, i) => {
+            const day = i + 1;
+            return (
+              <span key={day} className={`crp-cal__day${isToday(day) ? ' crp-cal__day--today' : ''}${hasAppt(day) ? ' crp-cal__day--appt' : ''}`}>
+                {day}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
