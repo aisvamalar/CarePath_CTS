@@ -175,6 +175,20 @@ function LoginForm({ onSwitch, role }: { onSwitch: () => void; role: UserRole })
         let patient;
         try { patient = await patientAPI.getMe(); }
         catch { patient = { patient_id: form.username, username: form.username }; }
+
+        // Fetch the patient dashboard which includes the MRN (patient-accessible).
+        if (patient.patient_id) {
+          try {
+            const dash = await patientAPI.dashboard();
+            const mrn = dash?.patient?.mrn;
+            if (mrn) {
+              patient = { ...patient, mrn };
+            }
+          } catch {
+            // Dashboard unavailable — MRN may be missing for care navigation.
+          }
+        }
+
         dispatch({ type: 'LOGIN', payload: { token: res.access_token, patient } });
         navigate('/chat');
       }
