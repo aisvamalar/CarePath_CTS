@@ -1,8 +1,31 @@
+import { useEffect, useState } from 'react';
 import type { Message } from '../context/AppContext';
 
 let robotImg: string;
 try { robotImg = new URL('../assets/robot.png', import.meta.url).href; }
 catch { robotImg = new URL('../assets/hero.png', import.meta.url).href; }
+
+// Claude-style cycling thinking messages
+const THINKING_MESSAGES = [
+  'Musing…',
+  'Mulling…',
+  'Figuring things out…',
+  'Thinking it through…',
+  'Working it out…',
+  'Connecting the dots…',
+  'Making sense of it…',
+  'Looking into it…',
+  'Piecing things together…',
+  'Working through it…',
+  'Reasoning…',
+  'Analyzing…',
+  'Exploring options…',
+  'Checking possibilities…',
+  'Finding the best match…',
+  'Narrowing it down…',
+  'Putting it together…',
+  'Almost there…',
+];
 
 interface Props { message: Message; }
 
@@ -41,22 +64,40 @@ export default function MessageBubble({ message }: Props) {
 }
 
 export function TypingIndicator() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    // Fade out → advance → fade in cycle every 2.2 s
+    const id = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setMsgIndex(i => (i + 1) % THINKING_MESSAGES.length);
+        setVisible(true);
+      }, 280);
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="mb-row mb-row--assistant">
       <div className="mb-avatar" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 56 56" fill="none">
-          <rect width="56" height="56" rx="14" fill="white" fillOpacity="0.9"/>
-          <path d="M28 11C28 11 16.5 18 16.5 27C16.5 34.5 22 40 28 42.5C34 40 39.5 34.5 39.5 27C39.5 18 28 11 28 11Z"
-            fill="#2e9b8a" fillOpacity="0.85"/>
-        </svg>
+        <img src={robotImg} alt="" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover' }} />
       </div>
       <div className="mb-wrap">
-        <div className="mb-bubble mb-bubble--assistant mb-bubble--typing">
-          <span className="mb-typing-label">CarePath is thinking</span>
-          <div className="mb-typing-dots" role="status" aria-label="Thinking">
-            {[0, 1, 2].map(i => (
-              <span key={i} className="mb-typing-dot" style={{ animationDelay: `${i * 0.2}s` }} />
-            ))}
+        <div className="mb-bubble mb-bubble--assistant mb-bubble--typing" role="status" aria-live="polite" aria-label="CarePath is thinking">
+          <div className="mb-thinking">
+            <div className="mb-thinking__dots">
+              {[0, 1, 2].map(i => (
+                <span key={i} className="mb-typing-dot" style={{ animationDelay: `${i * 0.18}s` }} />
+              ))}
+            </div>
+            <span
+              className="mb-thinking__msg"
+              style={{ opacity: visible ? 1 : 0 }}
+            >
+              {THINKING_MESSAGES[msgIndex]}
+            </span>
           </div>
         </div>
       </div>

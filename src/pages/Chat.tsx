@@ -23,7 +23,7 @@ export default function Chat() {
   const [error, setError] = useState('');
   const [safetyLoading, setSafetyLoading] = useState(false);
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
-  const [useSmartSafety, setUseSmartSafety] = useState(true); // Toggle between smart and full checklist
+  const [useSmartSafety] = useState(true); // Toggle between smart and full checklist
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -220,17 +220,25 @@ export default function Chat() {
       return <EmptyState onSuggestion={handleSuggestion} onNewChat={handleNewChat} />;
     }
 
-    // Verdict phase
+    // Verdict phase — show messages + verdict + care navigation all inline
     if (phase === 'verdict' && activeConversation.safetyResult) {
       return (
         <div style={styles.scrollArea}>
+          {/* Preserve the conversation above */}
+          <div style={styles.messages}>
+            <div className="mb-date-sep">Today</div>
+            {activeConversation.messages.map((m) => (
+              <MessageBubble key={m.id} message={m} />
+            ))}
+          </div>
+
+          {/* Verdict appears as a bot-side card continuing the conversation */}
           <VerdictCard
             result={activeConversation.safetyResult}
             onNewChat={handleNewChat}
           />
-          {/* The model marks the visit POTENTIALLY_AVOIDABLE → run the alternate care
-              pathway + booking. If it's NOT_AVOIDABLE (ED needed), VerdictCard shows the
-              emergency care plan and we do not offer self-service booking. */}
+
+          {/* Care navigation + booking flows inline below the verdict */}
           {activeConversation.safetyResult.result === 'NO' &&
             activeConversation.safetyResult.pathway?.decision === 'POTENTIALLY_AVOIDABLE' && (
               <CareNavigation
@@ -704,9 +712,8 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: 'auto',
   },
   messages: {
-    maxWidth: '720px',
-    margin: '0 auto',
-    padding: '24px 20px 12px',
+    width: '100%',
+    padding: '24px 32px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',

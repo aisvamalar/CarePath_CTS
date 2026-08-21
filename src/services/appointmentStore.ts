@@ -23,6 +23,12 @@ export interface StoredAppointment {
   care_type?: CareType | null;
   specialty?: string | null;
   hospital_name?: string | null;
+  hospital_id?: string | null;
+  /** Provider lat/lng from /navigate nearby_providers — saved at booking time */
+  provider_lat?: number | null;
+  provider_lng?: number | null;
+  /** Provider address from OSM (frequently null) */
+  provider_address?: string | null;
   slot?: Slot | null;
   date?: string | null;
   time?: string | null;
@@ -64,7 +70,11 @@ export const appointmentStore = {
   },
 
   /** Insert or update from a book/reschedule response. */
-  upsertFromResponse(res: AppointmentResponse, recommendationId?: string | null): StoredAppointment {
+  upsertFromResponse(
+    res: AppointmentResponse,
+    recommendationId?: string | null,
+    providerCoords?: { lat: number; lng: number; address?: string | null } | null,
+  ): StoredAppointment {
     const all = readAll();
     const now = new Date().toISOString();
     const existing = all.find((a) => a.appointment_id === res.appointment_id);
@@ -76,6 +86,10 @@ export const appointmentStore = {
       care_type: res.care_type ?? existing?.care_type ?? null,
       specialty: res.specialty ?? existing?.specialty ?? null,
       hospital_name: res.hospital_name ?? existing?.hospital_name ?? null,
+      hospital_id: res.hospital_id ?? existing?.hospital_id ?? null,
+      provider_lat: providerCoords?.lat ?? existing?.provider_lat ?? null,
+      provider_lng: providerCoords?.lng ?? existing?.provider_lng ?? null,
+      provider_address: providerCoords?.address ?? existing?.provider_address ?? null,
       slot: res.slot ?? existing?.slot ?? null,
       date: res.date ?? existing?.date ?? null,
       time: res.time ?? existing?.time ?? null,

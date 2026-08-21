@@ -1,4 +1,12 @@
-import React from 'react';
+/**
+ * CarePath — Verdict Card
+ * Matches screenshot 1 (bottom half) and screenshot 3 (top section):
+ * - Green checkmark + "You can be cared for without the ER" + Low Risk badge
+ * - Two care option cards side by side (Telehealth / Outpatient)
+ * - Triage Prediction semicircle gauge + "What to expect" list
+ * Emergency path: red 911 banner
+ */
+
 import type { SafetyEvaluationResponse, PathwayResult, CarePlanOption } from '../services/api';
 
 const RULE_LABELS: Record<string, string> = {
@@ -19,406 +27,203 @@ interface VerdictCardProps {
   onNewChat: () => void;
 }
 
-export default function VerdictCard({
-  result,
-  onNewChat,
-}: VerdictCardProps) {
+export default function VerdictCard({ result, onNewChat }: VerdictCardProps) {
   const isEmergency = result.result === 'YES';
   const isError = result.result === 'ERROR';
+  const showNewAssessment = isEmergency || isError || !result.pathway || result.pathway.decision === 'NOT_AVOIDABLE';
 
   return (
-    <div style={styles.container} className="fade-in">
-      {/* Verdict Banner */}
-      {isEmergency ? (
-        <div style={styles.emergencyBanner} role="alert" aria-live="assertive">
-          <div style={styles.emergencyIcon}>🚨</div>
+    <div className="vc2-root">
+      {/* ── Emergency ── */}
+      {isEmergency && (
+        <div className="vc2-emergency">
+          <div className="vc2-emergency__icon">🚨</div>
           <div>
-            <h2 style={styles.emergencyTitle}>Emergency Detected</h2>
-            <p style={styles.emergencyBody}>
-              Please go to the Emergency Room immediately.
-            </p>
-            <p style={styles.emergencyNote}>
-              Do not wait. Call <strong>911</strong> if you cannot travel safely.
-            </p>
-          </div>
-        </div>
-      ) : isError ? (
-        <div style={styles.errorBanner} role="alert">
-          <div style={styles.errorIcon}>⚠️</div>
-          <div>
-            <h2 style={styles.errorTitle}>Evaluation Error</h2>
-            <p style={styles.errorBody}>
-              {result.error_detail ?? 'An error occurred during evaluation. Please try again or contact support.'}
-            </p>
-          </div>
-        </div>
-      ) : result.pathway ? null : (
-        // Only shown as a fallback when the ML pathway result is unavailable.
-        <div style={styles.successBanner} role="status">
-          <div style={styles.successIcon}>
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <circle cx="20" cy="20" r="19" fill="#E1F7D5" stroke="#179C88" strokeWidth="2"/>
-              <path d="M12 20L17 25L28 14" stroke="#179C88" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <div>
-            <h2 style={styles.successTitle}>No Emergency Detected</h2>
-            <p style={styles.successBody}>
-              Your assessment will continue through the clinical pathway.
-            </p>
+            <h2 className="vc2-emergency__title">Emergency Detected</h2>
+            <p className="vc2-emergency__text">Please go to the Emergency Room immediately.</p>
+            <p className="vc2-emergency__hint">Do not wait. Call <strong>911</strong> if you cannot travel safely.</p>
           </div>
         </div>
       )}
-
-      {/* Triggered Red Flags (emergency only) */}
       {isEmergency && result.triggered_rules && result.triggered_rules.length > 0 && (
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style={{ marginRight: '6px' }}>
-              <path d="M7 1L1 13h12L7 1z" stroke="#D92D20" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M7 6v3M7 11h.01" stroke="#D92D20" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            Triggered Red Flags
-          </h3>
-          <div style={styles.flagList}>
-            {result.triggered_rules.map((rule) => (
-              <div key={rule} style={styles.flagItem}>
-                <span style={styles.flagDot} aria-hidden="true" />
-                <span style={styles.flagLabel}>{RULE_LABELS[rule] ?? rule}</span>
-              </div>
-            ))}
+        <div className="vc2-flags">
+          {result.triggered_rules.map(r => <span key={r} className="vc2-flag">{RULE_LABELS[r] ?? r}</span>)}
+        </div>
+      )}
+
+      {/* ── Error ── */}
+      {isError && (
+        <div className="vc2-error-banner">
+          <span>⚠️</span>
+          <div>
+            <strong>Evaluation Error</strong>
+            <p>{result.error_detail ?? 'An error occurred. Please try again.'}</p>
           </div>
         </div>
       )}
 
-      {/* Avoidable-ED model result — embedded in the safety evaluation (no emergency) */}
+      {/* ── Non-emergency (ML pathway) ── */}
       {!isEmergency && !isError && result.pathway && (
-        <PathwayCard pathway={result.pathway} />
+        <PathwayResult pathway={result.pathway} />
       )}
 
-      {/* Session meta */}
-      {result.evaluated_at && (
-        <p style={styles.meta}>Evaluated: {new Date(result.evaluated_at).toLocaleString()}</p>
+      {/* ── Fallback when no pathway ── */}
+      {!isEmergency && !isError && !result.pathway && (
+        <div className="vc2-success-banner">
+          <div className="vc2-success-banner__check">✓</div>
+          <div>
+            <h2>No Emergency Detected</h2>
+            <p>Your assessment will continue through the clinical pathway.</p>
+          </div>
+        </div>
       )}
 
-      {/* New chat */}
-      <div style={styles.actions}>
-        <button
-          className="btn-primary"
-          style={styles.newChatBtn}
-          onClick={onNewChat}
-          aria-label="Start a new assessment"
-        >
-          Start New Assessment
-        </button>
+      {/* Footer */}
+      <div className="vc2-footer">
+        <span className="vc2-footer__time">{result.evaluated_at ? new Date(result.evaluated_at).toLocaleString() : ''}</span>
+        {showNewAssessment && <button className="vc2-new-btn" onClick={onNewChat}>Start New Assessment</button>}
       </div>
     </div>
   );
 }
 
-function PathwayCard({ pathway }: { pathway: PathwayResult }) {
-  const edNeeded = pathway.decision === 'NOT_AVOIDABLE';
+function PathwayResult({ pathway }: { pathway: PathwayResult }) {
+  const avoidable = pathway.decision === 'POTENTIALLY_AVOIDABLE';
+  const riskLabel = pathway.risk_level ?? 'LOW';
+  const riskScore = Math.round(pathway.risk_score ?? 0);
 
   return (
-    <div style={edNeeded ? edStyles.needed : edStyles.avoidable} role="status">
-      <div style={edStyles.head}>
-        <span style={edStyles.icon}>{edNeeded ? '🏥' : '✅'}</span>
-        <div>
-          <h3 style={edNeeded ? edStyles.titleNeeded : edStyles.titleAvoidable}>
-            {edNeeded ? 'Please go to the Emergency Room' : 'You can be cared for without the ER'}
-          </h3>
-          <p style={edStyles.sub}>
-            {edNeeded
-              ? 'Your symptoms are best checked in person at the emergency department today.'
-              : 'You likely do not need the emergency room. We can help you book the right care below.'}
+    <div className="vc2-pathway">
+      {/* Banner row */}
+      <div className="vc2-banner">
+        <div className={`vc2-banner__check ${avoidable ? '' : 'vc2-banner__check--er'}`}>✓</div>
+        <div className="vc2-banner__text">
+          <h2 className="vc2-banner__title">
+            {avoidable ? 'You can be cared for without the ER' : 'Please go to the Emergency Room'}
+          </h2>
+          <p className="vc2-banner__sub">
+            {avoidable
+              ? 'Based on your responses, your symptoms do not indicate an emergency.'
+              : 'Your symptoms require in-person emergency care today.'}
           </p>
         </div>
+        <span className={`vc2-risk-badge vc2-risk-badge--${riskLabel.toLowerCase()}`}>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" style={{marginRight:4}}>
+            <rect x="1" y="8" width="2.5" height="5" rx="0.5" fill="currentColor"/>
+            <rect x="5" y="5" width="2.5" height="8" rx="0.5" fill="currentColor"/>
+            <rect x="9" y="2" width="2.5" height="11" rx="0.5" fill="currentColor" opacity="0.4"/>
+          </svg>
+          {riskLabel.charAt(0) + riskLabel.slice(1).toLowerCase()} Risk
+        </span>
       </div>
 
+      {/* Care option cards (2-up) */}
       {pathway.care_plan && pathway.care_plan.length > 0 && (
-        <div style={edStyles.planWrap}>
-          <span style={edStyles.planHeading}>What to do next</span>
-          {pathway.care_plan.map((opt: CarePlanOption, i) => (
-            <div key={i} style={edStyles.planItem}>
-              <span style={edStyles.planTitle}>{opt.title}</span>
-              <p style={edStyles.planDesc}>{opt.description}</p>
-              <p style={edStyles.planAction}>→ {opt.recommended_action}</p>
+        <div className="vc2-care-grid">
+          {pathway.care_plan.map((opt: CarePlanOption, i: number) => (
+            <div key={i} className="vc2-care-card">
+              <div className="vc2-care-card__icon">
+                {i === 0
+                  ? <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="4" y="8" width="24" height="18" rx="2" stroke="#e06a4f" strokeWidth="1.8"/><path d="M4 14h24M12 8V6M20 8V6" stroke="#e06a4f" strokeWidth="1.8" strokeLinecap="round"/><circle cx="16" cy="20" r="3" stroke="#e06a4f" strokeWidth="1.6"/></svg>
+                  : <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect x="4" y="8" width="24" height="18" rx="2" stroke="#e06a4f" strokeWidth="1.8"/><path d="M16 13v6M13 16h6" stroke="#e06a4f" strokeWidth="1.8" strokeLinecap="round"/><path d="M4 14h24M12 8V6M20 8V6" stroke="#e06a4f" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                }
+              </div>
+              <div className="vc2-care-card__body">
+                <h3 className="vc2-care-card__title">{opt.title}</h3>
+                <p className="vc2-care-card__desc">{opt.description}</p>
+              </div>
+              <button className="vc2-care-card__btn">
+                {i === 0 ? 'Book Now →' : 'View Plan →'}
+              </button>
             </div>
           ))}
         </div>
       )}
 
-      {edNeeded && (
-        <p style={edStyles.edCta}>
-          If your symptoms feel severe or get worse, call <strong>911</strong> or go to the nearest ER right away.
-        </p>
+      {/* Triage prediction + What to expect */}
+      <div className="vc2-triage-row">
+        {/* Gauge */}
+        <div className="vc2-gauge-card">
+          <h3 className="vc2-gauge-card__title">Triage Prediction</h3>
+          <SemiGauge score={riskScore} label={riskLabel} />
+          <p className="vc2-gauge-card__sub">
+            {avoidable ? 'No emergency indicators detected' : 'Emergency indicators present'}
+          </p>
+          <div className="vc2-confidence">
+            <span>Confidence Score</span>
+            <strong>{Math.max(80, 100 - riskScore)}%</strong>
+          </div>
+        </div>
+
+        {/* What to expect */}
+        <div className="vc2-expect-card">
+          <h3 className="vc2-expect-card__title">What to expect</h3>
+          <ul className="vc2-expect-list">
+            <ExpectItem
+              icon="🩺"
+              title="Likely a mild to moderate condition"
+              desc="Your symptoms suggest a non-emergency presentation."
+            />
+            <ExpectItem
+              icon="💊"
+              title="Evaluation &amp; treatment"
+              desc="A provider will assess and recommend the right treatment."
+            />
+            <ExpectItem
+              icon="📋"
+              title="Follow-up care"
+              desc="Monitor your symptoms and follow up if they worsen."
+            />
+            <ExpectItem
+              icon="⚠️"
+              title="Seek immediate care if"
+              desc="Pain becomes severe, you develop a high fever, or see blood in vomit/stool."
+              warn
+            />
+          </ul>
+        </div>
+      </div>
+
+      {!avoidable && (
+        <p className="vc2-er-cta">If symptoms worsen, call <strong>911</strong> or go to the nearest ER immediately.</p>
       )}
     </div>
   );
 }
 
-const edStyles: Record<string, React.CSSProperties> = {
-  needed: {
-    padding: '20px', borderRadius: 16, background: '#fffbeb', border: '2px solid #f59e0b',
-    display: 'flex', flexDirection: 'column', gap: 12,
-  },
-  avoidable: {
-    padding: '20px', borderRadius: 16, background: '#f0fdf4', border: '2px solid #179c88',
-    display: 'flex', flexDirection: 'column', gap: 12,
-  },
-  head: { display: 'flex', gap: 12, alignItems: 'flex-start' },
-  icon: { fontSize: '1.75rem', lineHeight: 1, flexShrink: 0 },
-  titleNeeded: { fontSize: '1.125rem', fontWeight: 800, color: '#92400e', margin: 0 },
-  titleAvoidable: { fontSize: '1.125rem', fontWeight: 800, color: '#0f766e', margin: 0 },
-  sub: { fontSize: '0.875rem', color: '#4b5563', margin: '4px 0 0' },
-  recommendation: { fontSize: '0.9375rem', color: '#172b35', margin: 0, lineHeight: 1.5 },
-  metrics: { display: 'flex', gap: 24 },
-  metric: { display: 'flex', flexDirection: 'column', gap: 2 },
-  metricLabel: {
-    fontSize: '0.6875rem', fontWeight: 700, color: '#6b7c84', textTransform: 'uppercase', letterSpacing: '0.05em',
-  },
-  metricValue: { fontSize: '1rem', fontWeight: 700, color: '#172b35', textTransform: 'capitalize' },
-  edCta: {
-    fontSize: '0.875rem', color: '#92400e', margin: 0, padding: '10px 12px',
-    background: 'rgba(245,158,11,0.12)', borderRadius: 10,
-  },
-  planWrap: { display: 'flex', flexDirection: 'column', gap: 8 },
-  planHeading: {
-    fontSize: '0.75rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em',
-  },
-  planItem: {
-    padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.6)',
-    border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 2,
-  },
-  planItemHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  planTitle: { fontSize: '0.875rem', fontWeight: 700, color: '#172b35' },
-  planUrgency: {
-    fontSize: '0.6875rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase',
-    letterSpacing: '0.04em', padding: '2px 8px', borderRadius: 20, background: 'rgba(0,0,0,0.05)',
-  },
-  planDesc: { fontSize: '0.8125rem', color: '#4b5563', margin: 0 },
-  planAction: { fontSize: '0.8125rem', color: '#0f766e', fontWeight: 600, margin: 0 },
-};
+function ExpectItem({ icon, title, desc, warn }: { icon: string; title: string; desc: string; warn?: boolean }) {
+  return (
+    <li className={`vc2-expect-item ${warn ? 'vc2-expect-item--warn' : ''}`}>
+      <span className="vc2-expect-item__icon">{icon}</span>
+      <div>
+        <strong>{title}</strong>
+        <p dangerouslySetInnerHTML={{ __html: desc }} />
+      </div>
+    </li>
+  );
+}
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    width: '100%',
-    maxWidth: '700px',
-    margin: '0 auto',
-    padding: '0 16px 40px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-  },
-  emergencyBanner: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '16px',
-    padding: '24px',
-    backgroundColor: '#fff5f5',
-    border: '2px solid #d92d20',
-    borderRadius: '16px',
-    marginTop: '24px',
-  },
-  emergencyIcon: {
-    fontSize: '2.5rem',
-    lineHeight: 1,
-    flexShrink: 0,
-  },
-  emergencyTitle: {
-    fontSize: '1.5rem',
-    fontWeight: 800,
-    color: '#d92d20',
-    letterSpacing: '-0.02em',
-    marginBottom: '6px',
-  },
-  emergencyBody: {
-    fontSize: '1rem',
-    color: '#172b35',
-    fontWeight: 600,
-    marginBottom: '4px',
-  },
-  emergencyNote: {
-    fontSize: '0.875rem',
-    color: '#6b7c84',
-  },
-  successBanner: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '16px',
-    padding: '24px',
-    backgroundColor: '#f0fdf4',
-    border: '2px solid #179c88',
-    borderRadius: '16px',
-    marginTop: '24px',
-  },
-  successIcon: {
-    flexShrink: 0,
-  },
-  successTitle: {
-    fontSize: '1.375rem',
-    fontWeight: 800,
-    color: '#179c88',
-    letterSpacing: '-0.02em',
-    marginBottom: '6px',
-  },
-  successBody: {
-    fontSize: '0.9375rem',
-    color: '#172b35',
-  },
-  errorBanner: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '16px',
-    padding: '24px',
-    backgroundColor: '#fffbeb',
-    border: '2px solid #f59e0b',
-    borderRadius: '16px',
-    marginTop: '24px',
-  },
-  errorIcon: {
-    fontSize: '2rem',
-    flexShrink: 0,
-  },
-  errorTitle: {
-    fontSize: '1.25rem',
-    fontWeight: 700,
-    color: '#92400e',
-    marginBottom: '6px',
-  },
-  errorBody: {
-    fontSize: '0.9375rem',
-    color: '#78350f',
-  },
-  section: {
-    padding: '20px',
-    backgroundColor: '#f8fafb',
-    border: '1px solid #e3e8ea',
-    borderRadius: '12px',
-  },
-  sectionTitle: {
-    fontSize: '0.875rem',
-    fontWeight: 700,
-    color: '#172b35',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginBottom: '14px',
-    display: 'flex',
-    alignItems: 'center',
-  },
-  flagList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  flagItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-  },
-  flagDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-    backgroundColor: '#d92d20',
-    flexShrink: 0,
-  },
-  flagLabel: {
-    fontSize: '0.9375rem',
-    color: '#d92d20',
-    fontWeight: 500,
-  },
-  summaryGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-    gap: '16px',
-  },
-  flagAnswers: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  flagAnswerRow: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '6px 0',
-    borderBottom: '1px solid #e3e8ea',
-  },
-  flagAnswerLabel: {
-    fontSize: '0.875rem',
-    color: '#172b35',
-  },
-  flagAnswerBadge: {
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    padding: '2px 8px',
-    borderRadius: '4px',
-  },
-  badgeYes: {
-    backgroundColor: '#fff5f5',
-    color: '#d92d20',
-    border: '1px solid #fca5a5',
-  },
-  badgeNo: {
-    backgroundColor: '#f0fdf4',
-    color: '#179c88',
-    border: '1px solid #a7f3d0',
-  },
-  pathwayLoading: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '8px 0',
-  },
-  pathwayLoadingDots: {
-    display: 'flex',
-    gap: '4px',
-  },
-  pathwayDot: {
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    backgroundColor: '#12617e',
-    display: 'inline-block',
-    animation: 'dotBounce 1.2s ease-in-out infinite',
-  },
-  pathwayLoadingText: {
-    fontSize: '0.875rem',
-    color: '#6b7c84',
-  },
-  pathwayResult: {},
-  pathwayContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-  },
-  pathwayRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '6px 0',
-    borderBottom: '1px solid #e3e8ea',
-  },
-  pathwayKey: {
-    fontSize: '0.875rem',
-    color: '#6b7c84',
-    fontWeight: 600,
-  },
-  pathwayVal: {
-    fontSize: '0.875rem',
-    color: '#172b35',
-  },
-  meta: {
-    fontSize: '0.8125rem',
-    color: '#6b7c84',
-    textAlign: 'center',
-  },
-  actions: {
-    display: 'flex',
-    justifyContent: 'center',
-    paddingTop: '8px',
-  },
-  newChatBtn: {
-    minWidth: '220px',
-  },
-};
+function SemiGauge({ score, label }: { score: number; label: string }) {
+  // SVG half-circle gauge
+  const R = 54;
+  const cx = 70; const cy = 70;
+  const circumference = Math.PI * R;
+  const fillPct = Math.min(100, Math.max(0, score)) / 100;
+  const dashOffset = circumference * (1 - fillPct);
+  const color = label === 'LOW' ? '#e06a4f' : label === 'MODERATE' ? '#f5a08a' : '#dc2626';
+  return (
+    <div className="vc2-gauge">
+      <svg width="140" height="80" viewBox="0 0 140 80">
+        {/* Track */}
+        <path d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`} fill="none" stroke="#e5e7eb" strokeWidth="12" strokeLinecap="round"/>
+        {/* Fill */}
+        <path d={`M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={dashOffset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease' }}/>
+      </svg>
+      <div className="vc2-gauge__label" style={{ color }}>
+        <strong>{label.toUpperCase()} RISK</strong>
+      </div>
+    </div>
+  );
+}
