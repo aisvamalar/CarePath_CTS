@@ -1,6 +1,7 @@
 /**
  * CarePath — Global Application Context
  * Manages auth state, patient info, conversation, and triage phase.
+ * Integrates with backend Chat History API for persistence.
  */
 
 import React, { createContext, useContext, useReducer, useCallback } from 'react';
@@ -38,6 +39,9 @@ export interface Conversation {
   title: string;
   messages: Message[];
   sessionId: string | null;
+  /** Backend chat history session ID (CHAT_xxxx) for persistence */
+  chatSessionId: string | null;
+  isPinned: boolean;
   intakeFeatures: IntakeFeatures | null;
   redFlags: Partial<RedFlagsPayload> | null;
   safetyResult: SafetyEvaluationResponse | null;
@@ -53,6 +57,8 @@ export interface AppState {
   activeConversationId: string | null;
   theme: Theme;
   sidebarOpen: boolean;
+  /** Whether initial chat list has been loaded from backend */
+  chatsLoaded: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,10 +74,16 @@ type Action =
   | { type: 'SET_ACTIVE_CONVERSATION'; payload: string }
   | { type: 'ADD_MESSAGE'; payload: { conversationId: string; message: Message } }
   | { type: 'SET_SESSION_ID'; payload: { conversationId: string; sessionId: string } }
+  | { type: 'SET_CHAT_SESSION_ID'; payload: { conversationId: string; chatSessionId: string } }
   | { type: 'SET_INTAKE_FEATURES'; payload: { conversationId: string; features: IntakeFeatures } }
   | { type: 'SET_CONVERSATION_PHASE'; payload: { conversationId: string; phase: AppPhase } }
   | { type: 'SET_RED_FLAGS'; payload: { conversationId: string; redFlags: Partial<RedFlagsPayload> } }
   | { type: 'SET_SAFETY_RESULT'; payload: { conversationId: string; result: SafetyEvaluationResponse } }
+  | { type: 'LOAD_CONVERSATIONS'; payload: Conversation[] }
+  | { type: 'DELETE_CONVERSATION'; payload: string }
+  | { type: 'PIN_CONVERSATION'; payload: { conversationId: string; isPinned: boolean } }
+  | { type: 'RENAME_CONVERSATION'; payload: { conversationId: string; title: string } }
+  | { type: 'SET_CHATS_LOADED'; payload: boolean }
   | { type: 'SET_THEME'; payload: Theme }
   | { type: 'TOGGLE_SIDEBAR' }
   | { type: 'SET_SIDEBAR'; payload: boolean };
@@ -88,6 +100,7 @@ const initialState: AppState = {
   activeConversationId: null,
   theme: (localStorage.getItem('cp_theme') as Theme) ?? 'light',
   sidebarOpen: true,
+  chatsLoaded: false,
 };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -115,6 +128,7 @@ function reducer(state: AppState, action: Action): AppState {
         phase: 'auth',
         theme: state.theme,
         sidebarOpen: true,
+        chatsLoaded: false,
       };
 
     case 'SET_PATIENT':
@@ -147,6 +161,16 @@ function reducer(state: AppState, action: Action): AppState {
         conversations: state.conversations.map((c) =>
           c.id === action.payload.conversationId
             ? { ...c, sessionId: action.payload.sessionId }
+            : c,
+        ),
+      };
+
+    case 'SET_CHAT_SESSION_ID':
+      return {
+        ...state,
+        conversations: state.conversations.map((c) =>
+          c.id === action.payload.conversationId
+            ? { ...c, chatSessionId: action.payload.chatSessionId }
             : c,
         ),
       };
@@ -191,6 +215,48 @@ function reducer(state: AppState, action: Action): AppState {
             : c,
         ),
       };
+
+    case 'LOAD_CONVERSATIONS':
+      return {
+        ...state,
+        conversations: action.payload,
+        chatsLoaded: true,
+      };
+
+    case 'DELETE_CONVERSATION': {
+      const remaining = state.conversations.filter((c) => c.id !== action.payload);
+      return {
+        ...state,
+        conversations: remaining,
+        activeConversationId:
+          state.activeConversationId === action.payload
+            ? (remaining[0]?.id ?? null)
+            : state.activeConversationId,
+      };
+    }
+
+    case 'PIN_CONVERSATION':
+      return {
+        ...state,
+        conversations: state.conversations.map((c) =>
+          c.id === action.payload.conversationId
+            ? { ...c, isPinned: action.payload.isPinned }
+            : c,
+        ),
+      };
+
+    case 'RENAME_CONVERSATION':
+      return {
+        ...state,
+        conversations: state.conversations.map((c) =>
+          c.id === action.payload.conversationId
+            ? { ...c, title: action.payload.title }
+            : c,
+        ),
+      };
+
+    case 'SET_CHATS_LOADED':
+      return { ...state, chatsLoaded: action.payload };
 
     case 'SET_THEME':
       localStorage.setItem('cp_theme', action.payload);

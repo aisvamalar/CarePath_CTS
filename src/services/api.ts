@@ -17,36 +17,35 @@
  *   /api/v1/ehr       — EHR CRUD (care-manager only)
  */
 
-import axios from 'axios';
+import client, { BASE_URL, toApiError } from './apiClient';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1';
+export { BASE_URL, toApiError };
 
-const client = axios.create({
-  baseURL: BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'ngrok-skip-browser-warning': 'true',
-  },
-  timeout: 30000,
-});
+// Re-export the dedicated service modules so screens can import from one place.
+export { careManagerService } from './careManagerService';
+export type {
+  AggregateAnalytics,
+  PatientAnalytics,
+  ReadmissionPrediction,
+  PostDischargeStatus,
+  CareManagerDashboard,
+  CareManagerProfile,
+} from './careManagerService';
 
-/** Attach JWT token to every request if present */
-client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('cp_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
-/** Log errors in dev */
-client.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (import.meta.env.DEV) {
-      console.error('[CarePath API]', err?.response?.status, err?.config?.url);
-    }
-    return Promise.reject(err);
-  },
-);
+export { ehrService } from './ehrService';
+export type {
+  PatientListItem,
+  PatientDetail,
+  PatientCreatePayload,
+  PatientUpdatePayload,
+  Demographics,
+  LabValues,
+  ChronicConditions,
+  VitalSigns,
+  Medications,
+  UtilizationHistory,
+  AdmissionData,
+} from './ehrService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -81,9 +80,35 @@ export interface RedFlagsPayload {
   anaphylaxis: boolean; high_fever: boolean; unable_to_walk: boolean; severe_abdominal_pain: boolean;
 }
 
+/** One recommended action returned by the ML pathway (safety evaluate). */
+export interface CarePlanOption {
+  title: string;
+  urgency: string;
+  description: string;
+  recommended_action: string;
+}
+
+/** Embedded ML pathway result attached to the safety evaluation response. */
+export interface PathwayResult {
+  patient_id: string;
+  risk_score: number;              // 0..1
+  risk_level: string;              // e.g. "HIGH" | "MEDIUM" | "LOW"
+  decision: 'NOT_AVOIDABLE' | 'POTENTIALLY_AVOIDABLE';
+  explanation: string;
+  care_plan?: CarePlanOption[];
+  predicted_at: string;
+  raw_agent_output?: Record<string, unknown> | null;
+}
+
 export interface SafetyEvaluationResponse {
+  session_id?: string;
   result: 'YES' | 'NO' | 'PENDING' | 'ERROR';
-  next_action?: string; triggered_rules?: string[]; error_detail?: string; evaluated_at?: string;
+  next_action?: 'EMERGENCY_PATHWAY' | 'CMS_ML' | 'ERROR' | string;
+  triggered_rules?: string[];
+  error_detail?: string | null;
+  evaluated_at?: string;
+  /** Present when result === 'NO' — the trained avoidable-ED model output. */
+  pathway?: PathwayResult | null;
 }
 
 export interface PathwayResponse { [key: string]: unknown; }
@@ -261,6 +286,13 @@ export const pathwayAPI = {
   getFollowUpStatus: (patient_id: string) =>
     client.get<FollowUpResponse>(`/patients/${patient_id}/follow-up/`).then(r => r.data),
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Care Manager — /api/v1/care-manager
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Legacy alias — prefer importing `careManagerService` directly. */
+export { careManagerService as careManagerAPI } from './careManagerService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ED Prediction — /api/v1/patient/ed-prediction

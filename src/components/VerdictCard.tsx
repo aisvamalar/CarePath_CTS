@@ -1,5 +1,5 @@
 import React from 'react';
-import type { SafetyEvaluationResponse, IntakeFeatures, RedFlagsPayload } from '../services/api';
+import type { SafetyEvaluationResponse, PathwayResult, CarePlanOption } from '../services/api';
 
 const RULE_LABELS: Record<string, string> = {
   chest_pain: 'Chest Pain / Pressure',
@@ -14,35 +14,14 @@ const RULE_LABELS: Record<string, string> = {
   severe_abdominal_pain: 'Severe Abdominal Pain',
 };
 
-const FLAG_LABELS: Record<keyof RedFlagsPayload, string> = {
-  chest_pain: 'Chest Pain',
-  difficulty_breathing: 'Difficulty Breathing',
-  altered_consciousness: 'Altered Consciousness',
-  severe_bleeding: 'Severe Bleeding',
-  stroke_symptoms: 'Stroke Symptoms',
-  suicidal_ideation: 'Suicidal Ideation',
-  anaphylaxis: 'Anaphylaxis',
-  high_fever: 'High Fever',
-  unable_to_walk: 'Unable to Walk',
-  severe_abdominal_pain: 'Severe Abdominal Pain',
-};
-
 interface VerdictCardProps {
   result: SafetyEvaluationResponse;
-  intakeFeatures: IntakeFeatures | null;
-  redFlags: Partial<RedFlagsPayload> | null;
   onNewChat: () => void;
-  pathwayLoading?: boolean;
-  pathwayResult?: Record<string, unknown> | null;
 }
 
 export default function VerdictCard({
   result,
-  intakeFeatures,
-  redFlags,
   onNewChat,
-  pathwayLoading,
-  pathwayResult,
 }: VerdictCardProps) {
   const isEmergency = result.result === 'YES';
   const isError = result.result === 'ERROR';
@@ -73,7 +52,8 @@ export default function VerdictCard({
             </p>
           </div>
         </div>
-      ) : (
+      ) : result.pathway ? null : (
+        // Only shown as a fallback when the ML pathway result is unavailable.
         <div style={styles.successBanner} role="status">
           <div style={styles.successIcon}>
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -111,81 +91,9 @@ export default function VerdictCard({
         </div>
       )}
 
-      {/* ML Pathway result (no emergency) */}
-      {!isEmergency && !isError && (
-        <div style={styles.section}>
-          {pathwayLoading ? (
-            <div style={styles.pathwayLoading}>
-              <div style={styles.pathwayLoadingDots}>
-                {[0,1,2].map((i) => (
-                  <span key={i} style={{ ...styles.pathwayDot, animationDelay: `${i * 0.18}s` }} />
-                ))}
-              </div>
-              <p style={styles.pathwayLoadingText}>Loading clinical pathway…</p>
-            </div>
-          ) : pathwayResult ? (
-            <div style={styles.pathwayResult}>
-              <h3 style={styles.sectionTitle}>Clinical Pathway</h3>
-              <div style={styles.pathwayContent}>
-                {Object.entries(pathwayResult).map(([key, val]) => (
-                  <div key={key} style={styles.pathwayRow}>
-                    <span style={styles.pathwayKey}>{formatKey(key)}</span>
-                    <span style={styles.pathwayVal}>{String(val)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* Assessment Summary */}
-      {intakeFeatures && (
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Assessment Summary</h3>
-          <div style={styles.summaryGrid}>
-            {intakeFeatures.chief_complaint && (
-              <SummaryItem label="Chief Complaint" value={intakeFeatures.chief_complaint} />
-            )}
-            {intakeFeatures.symptom_onset && (
-              <SummaryItem label="Onset" value={intakeFeatures.symptom_onset} />
-            )}
-            {intakeFeatures.pain_scale != null && (
-              <SummaryItem label="Pain Scale" value={`${intakeFeatures.pain_scale} / 10`} />
-            )}
-            {intakeFeatures.location && (
-              <SummaryItem label="Location" value={intakeFeatures.location} />
-            )}
-            <SummaryItem label="Emergency Screening" value="Completed" />
-            <SummaryItem
-              label="Result"
-              value={isEmergency ? 'Emergency Detected' : isError ? 'Error' : 'No Emergency'}
-              highlight={isEmergency ? 'emergency' : isError ? 'error' : 'success'}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Red flag answers */}
-      {redFlags && (
-        <div style={styles.section}>
-          <h3 style={styles.sectionTitle}>Red Flag Answers</h3>
-          <div style={styles.flagAnswers}>
-            {(Object.entries(redFlags) as Array<[keyof RedFlagsPayload, boolean]>).map(([field, val]) => (
-              <div key={field} style={styles.flagAnswerRow}>
-                <span style={styles.flagAnswerLabel}>{FLAG_LABELS[field]}</span>
-                <span
-                  style={{
-                    ...styles.flagAnswerBadge,
-                    ...(val ? styles.badgeYes : styles.badgeNo),
-                  }}
-                >
-                  {val ? 'Yes' : 'No'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Avoidable-ED model result — embedded in the safety evaluation (no emergency) */}
+      {!isEmergency && !isError && result.pathway && (
+        <PathwayCard pathway={result.pathway} />
       )}
 
       {/* Session meta */}
@@ -208,62 +116,89 @@ export default function VerdictCard({
   );
 }
 
-function SummaryItem({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: 'emergency' | 'success' | 'error';
-}) {
+function PathwayCard({ pathway }: { pathway: PathwayResult }) {
+  const edNeeded = pathway.decision === 'NOT_AVOIDABLE';
+
   return (
-    <div style={summaryStyles.item}>
-      <span style={summaryStyles.label}>{label}</span>
-      <span
-        style={{
-          ...summaryStyles.value,
-          ...(highlight === 'emergency' ? summaryStyles.emergency : {}),
-          ...(highlight === 'success' ? summaryStyles.success : {}),
-        }}
-      >
-        {value}
-      </span>
+    <div style={edNeeded ? edStyles.needed : edStyles.avoidable} role="status">
+      <div style={edStyles.head}>
+        <span style={edStyles.icon}>{edNeeded ? '🏥' : '✅'}</span>
+        <div>
+          <h3 style={edNeeded ? edStyles.titleNeeded : edStyles.titleAvoidable}>
+            {edNeeded ? 'Please go to the Emergency Room' : 'You can be cared for without the ER'}
+          </h3>
+          <p style={edStyles.sub}>
+            {edNeeded
+              ? 'Your symptoms are best checked in person at the emergency department today.'
+              : 'You likely do not need the emergency room. We can help you book the right care below.'}
+          </p>
+        </div>
+      </div>
+
+      {pathway.care_plan && pathway.care_plan.length > 0 && (
+        <div style={edStyles.planWrap}>
+          <span style={edStyles.planHeading}>What to do next</span>
+          {pathway.care_plan.map((opt: CarePlanOption, i) => (
+            <div key={i} style={edStyles.planItem}>
+              <span style={edStyles.planTitle}>{opt.title}</span>
+              <p style={edStyles.planDesc}>{opt.description}</p>
+              <p style={edStyles.planAction}>→ {opt.recommended_action}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {edNeeded && (
+        <p style={edStyles.edCta}>
+          If your symptoms feel severe or get worse, call <strong>911</strong> or go to the nearest ER right away.
+        </p>
+      )}
     </div>
   );
 }
 
-const summaryStyles: Record<string, React.CSSProperties> = {
-  item: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
+const edStyles: Record<string, React.CSSProperties> = {
+  needed: {
+    padding: '20px', borderRadius: 16, background: '#fffbeb', border: '2px solid #f59e0b',
+    display: 'flex', flexDirection: 'column', gap: 12,
   },
-  label: {
-    fontSize: '0.75rem',
-    fontWeight: 600,
-    color: '#6b7c84',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+  avoidable: {
+    padding: '20px', borderRadius: 16, background: '#f0fdf4', border: '2px solid #179c88',
+    display: 'flex', flexDirection: 'column', gap: 12,
   },
-  value: {
-    fontSize: '0.9375rem',
-    color: '#172b35',
-    fontWeight: 500,
+  head: { display: 'flex', gap: 12, alignItems: 'flex-start' },
+  icon: { fontSize: '1.75rem', lineHeight: 1, flexShrink: 0 },
+  titleNeeded: { fontSize: '1.125rem', fontWeight: 800, color: '#92400e', margin: 0 },
+  titleAvoidable: { fontSize: '1.125rem', fontWeight: 800, color: '#0f766e', margin: 0 },
+  sub: { fontSize: '0.875rem', color: '#4b5563', margin: '4px 0 0' },
+  recommendation: { fontSize: '0.9375rem', color: '#172b35', margin: 0, lineHeight: 1.5 },
+  metrics: { display: 'flex', gap: 24 },
+  metric: { display: 'flex', flexDirection: 'column', gap: 2 },
+  metricLabel: {
+    fontSize: '0.6875rem', fontWeight: 700, color: '#6b7c84', textTransform: 'uppercase', letterSpacing: '0.05em',
   },
-  emergency: {
-    color: '#d92d20',
-    fontWeight: 700,
+  metricValue: { fontSize: '1rem', fontWeight: 700, color: '#172b35', textTransform: 'capitalize' },
+  edCta: {
+    fontSize: '0.875rem', color: '#92400e', margin: 0, padding: '10px 12px',
+    background: 'rgba(245,158,11,0.12)', borderRadius: 10,
   },
-  success: {
-    color: '#179c88',
-    fontWeight: 700,
+  planWrap: { display: 'flex', flexDirection: 'column', gap: 8 },
+  planHeading: {
+    fontSize: '0.75rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em',
   },
+  planItem: {
+    padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.6)',
+    border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 2,
+  },
+  planItemHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  planTitle: { fontSize: '0.875rem', fontWeight: 700, color: '#172b35' },
+  planUrgency: {
+    fontSize: '0.6875rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase',
+    letterSpacing: '0.04em', padding: '2px 8px', borderRadius: 20, background: 'rgba(0,0,0,0.05)',
+  },
+  planDesc: { fontSize: '0.8125rem', color: '#4b5563', margin: 0 },
+  planAction: { fontSize: '0.8125rem', color: '#0f766e', fontWeight: 600, margin: 0 },
 };
-
-function formatKey(key: string) {
-  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 const styles: Record<string, React.CSSProperties> = {
   container: {

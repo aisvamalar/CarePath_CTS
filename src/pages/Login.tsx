@@ -8,6 +8,8 @@ let robotImg: string;
 try { robotImg = new URL('../assets/robot.png', import.meta.url).href; }
 catch { robotImg = new URL('../assets/hero.png', import.meta.url).href; }
 
+export type UserRole = 'patient' | 'care_manager';
+
 export default function Login() {
   return <AuthScreen initialTab="login" />;
 }
@@ -20,6 +22,7 @@ export function SignupPage() {
 
 function AuthScreen({ initialTab }: { initialTab: 'login' | 'signup' }) {
   const [tab, setTab] = useState<'login' | 'signup'>(initialTab);
+  const [role, setRole] = useState<UserRole>('patient');
 
   return (
     <div className="auth-screen">
@@ -29,11 +32,13 @@ function AuthScreen({ initialTab }: { initialTab: 'login' | 'signup' }) {
         <div className="auth-desktop__left">
           <div className="auth-desktop__form-wrap">
             <Logo size={32} />
+            {/* Role Toggle */}
+            <RoleToggle role={role} setRole={setRole} />
             <div className={`auth-desktop__form-slot${tab === 'login' ? ' auth-desktop__form-slot--visible' : ''}`}>
-              <LoginForm onSwitch={() => setTab('signup')} />
+              <LoginForm onSwitch={() => setTab('signup')} role={role} />
             </div>
             <div className={`auth-desktop__form-slot${tab === 'signup' ? ' auth-desktop__form-slot--visible' : ''}`}>
-              <SignupForm onSwitch={() => setTab('login')} />
+              <SignupForm onSwitch={() => setTab('login')} role={role} />
             </div>
           </div>
           <p className="auth-desktop__footer">🔒 Your data is safe and secure with CarePath.</p>
@@ -43,11 +48,13 @@ function AuthScreen({ initialTab }: { initialTab: 'login' | 'signup' }) {
         <div className="auth-desktop__right-form">
           <div className="auth-desktop__form-wrap">
             <Logo size={32} />
+            {/* Role Toggle */}
+            <RoleToggle role={role} setRole={setRole} />
             <div className={`auth-desktop__form-slot${tab === 'signup' ? ' auth-desktop__form-slot--visible' : ''}`}>
-              <SignupForm onSwitch={() => setTab('login')} />
+              <SignupForm onSwitch={() => setTab('login')} role={role} />
             </div>
             <div className={`auth-desktop__form-slot${tab === 'login' ? ' auth-desktop__form-slot--visible' : ''}`}>
-              <LoginForm onSwitch={() => setTab('signup')} />
+              <LoginForm onSwitch={() => setTab('signup')} role={role} />
             </div>
           </div>
           <p className="auth-desktop__footer">🔒 Your data is safe and secure with CarePath.</p>
@@ -58,7 +65,11 @@ function AuthScreen({ initialTab }: { initialTab: 'login' | 'signup' }) {
           <div className="auth-desktop__panel-content">
             <Logo size={28} />
             <h2 className="auth-desktop__headline">Your health.<br/><em>Your path.</em></h2>
-            <p className="auth-desktop__body">Join CarePath and take control of your health journey.</p>
+            <p className="auth-desktop__body">
+              {role === 'patient'
+                ? 'Join CarePath and take control of your health journey.'
+                : 'Manage patient care pathways and optimize outcomes.'}
+            </p>
             <img src={robotImg} alt="CarePath AI" className="auth-desktop__robot" />
           </div>
           <div className="auth-desktop__panel-cta">
@@ -82,20 +93,52 @@ function AuthScreen({ initialTab }: { initialTab: 'login' | 'signup' }) {
         <div className="auth-screen__header"><Logo size={32} /></div>
         <div className="auth-screen__robot"><img src={robotImg} alt="CarePath AI" className="auth-screen__robot-img" /></div>
         <div className="auth-screen__card">
+          {/* Role Toggle */}
+          <RoleToggle role={role} setRole={setRole} />
           <div className="auth-tabs">
             <button className={`auth-tabs__btn${tab === 'login' ? ' auth-tabs__btn--active' : ''}`} onClick={() => setTab('login')}>Log In</button>
             <button className={`auth-tabs__btn${tab === 'signup' ? ' auth-tabs__btn--active' : ''}`} onClick={() => setTab('signup')}>Sign Up</button>
           </div>
-          {tab === 'login' ? <LoginForm onSwitch={() => setTab('signup')} /> : <SignupForm onSwitch={() => setTab('login')} />}
+          {tab === 'login' ? <LoginForm onSwitch={() => setTab('signup')} role={role} /> : <SignupForm onSwitch={() => setTab('login')} role={role} />}
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Role Toggle ──────────────────────────────────────────────────────────────
+
+function RoleToggle({ role, setRole }: { role: UserRole; setRole: (r: UserRole) => void }) {
+  return (
+    <div className="auth-role-toggle">
+      <button
+        className={`auth-role-toggle__btn${role === 'patient' ? ' auth-role-toggle__btn--active' : ''}`}
+        onClick={() => setRole('patient')}
+        type="button"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="5.5" r="2.8" stroke="currentColor" strokeWidth="1.4"/>
+          <path d="M2 14c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        </svg>
+        Patient
+      </button>
+      <button
+        className={`auth-role-toggle__btn${role === 'care_manager' ? ' auth-role-toggle__btn--active' : ''}`}
+        onClick={() => setRole('care_manager')}
+        type="button"
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M8 1l1.5 3h3.5l-2.8 2.2 1 3.3L8 7.5 4.8 9.5l1-3.3L3 4h3.5L8 1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+        </svg>
+        Care Manager
+      </button>
+    </div>
+  );
+}
+
 // ─── Login Form ───────────────────────────────────────────────────────────────
 
-function LoginForm({ onSwitch }: { onSwitch: () => void }) {
+function LoginForm({ onSwitch, role }: { onSwitch: () => void; role: UserRole }) {
   const { dispatch } = useApp();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
@@ -119,11 +162,22 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     try {
       const res = await authAPI.login({ username: form.username, password: form.password });
       localStorage.setItem('cp_token', res.access_token);
-      let patient;
-      try { patient = await patientAPI.getMe(); }
-      catch { patient = { patient_id: form.username, username: form.username }; }
-      dispatch({ type: 'LOGIN', payload: { token: res.access_token, patient } });
-      navigate('/chat');
+
+      // Route based on backend role response or selected role
+      const redirectTo = res.redirect_to ?? (role === 'care_manager' ? '/care-manager' : '/patient');
+
+      if (redirectTo === '/care-manager' || res.role === 'CARE_MANAGER') {
+        // Care Manager login
+        dispatch({ type: 'LOGIN', payload: { token: res.access_token, patient: { patient_id: form.username, username: form.username, name: form.username } } });
+        navigate('/care-manager');
+      } else {
+        // Patient login
+        let patient;
+        try { patient = await patientAPI.getMe(); }
+        catch { patient = { patient_id: form.username, username: form.username }; }
+        dispatch({ type: 'LOGIN', payload: { token: res.access_token, patient } });
+        navigate('/chat');
+      }
     } catch (err) { setApiError(extractErr(err)); }
     finally { setLoading(false); }
   };
@@ -132,7 +186,9 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
     <div className="auth-form-area fade-in">
       <div className="auth-form-area__header">
         <h1 className="auth-form-area__title">Welcome back! 👋</h1>
-        <p className="auth-form-area__sub">Sign in to continue your health journey.</p>
+        <p className="auth-form-area__sub">
+          {role === 'patient' ? 'Sign in to continue your health journey.' : 'Sign in to manage patient pathways.'}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="auth-fields">
@@ -185,7 +241,7 @@ function LoginForm({ onSwitch }: { onSwitch: () => void }) {
 
 // ─── Signup Form ──────────────────────────────────────────────────────────────
 
-function SignupForm({ onSwitch }: { onSwitch: () => void }) {
+function SignupForm({ onSwitch, role }: { onSwitch: () => void; role: UserRole }) {
   const navigate = useNavigate();
   const [form, setForm] = useState({ mrn: '', username: '', password: '', confirm: '' });
   const [showPwd, setShowPwd] = useState(false);
@@ -197,7 +253,8 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.mrn.trim()) e.mrn = 'MRN is required';
+    // MRN only required for patients
+    if (role === 'patient' && !form.mrn.trim()) e.mrn = 'MRN is required';
     if (!form.username.trim()) e.username = 'Username is required';
     else if (form.username.length < 3) e.username = 'Min 3 characters';
     if (!form.password) e.password = 'Password is required';
@@ -213,7 +270,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     if (!validate()) return;
     setApiError(''); setLoading(true);
     try {
-      await authAPI.signup({ mrn: form.mrn, username: form.username, password: form.password, confirm_password: form.confirm });
+      if (role === 'care_manager') {
+        // Care Manager signup — no MRN
+        await authAPI.signupCareManager({
+          username: form.username,
+          password: form.password,
+          confirm_password: form.confirm,
+        });
+      } else {
+        // Patient signup — includes MRN
+        await authAPI.signup({
+          mrn: form.mrn,
+          username: form.username,
+          password: form.password,
+          confirm_password: form.confirm,
+        });
+      }
       setDone(true);
     } catch (err) { setApiError(extractErr(err)); }
     finally { setLoading(false); }
@@ -224,7 +296,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       <div className="auth-form-area auth-form-area--success fade-in">
         <div className="af-success-icon">✓</div>
         <h2 className="auth-form-area__title">Account Created!</h2>
-        <p className="auth-form-area__sub">Your CarePath is ready. Sign in to begin.</p>
+        <p className="auth-form-area__sub">
+          {role === 'care_manager'
+            ? 'Your Care Manager account is ready. Sign in to begin.'
+            : 'Your CarePath is ready. Sign in to begin.'}
+        </p>
         <button className="af-submit" onClick={() => navigate('/login')}>Go to Login →</button>
       </div>
     );
@@ -234,23 +310,30 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     <div className="auth-form-area fade-in">
       <div className="auth-form-area__header">
         <h1 className="auth-form-area__title">Create your account</h1>
-        <p className="auth-form-area__sub">Start your personalized health journey.</p>
+        <p className="auth-form-area__sub">
+          {role === 'patient'
+            ? 'Start your personalized health journey.'
+            : 'Join as a Care Manager to manage patient pathways.'}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="auth-fields">
-        <div className="af-field">
-          <label className="af-label">MRN Number</label>
-          <div className={`af-input-wrap${errors.mrn ? ' af-input-wrap--err' : ''}`}>
-            <svg className="af-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-              <path d="M2 7h12M5 10.5h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-            </svg>
-            <input type="text" placeholder="Enter your MRN" autoComplete="off"
-              value={form.mrn} onChange={e => setForm(f => ({ ...f, mrn: e.target.value }))}
-              disabled={loading} className="af-input" />
+        {/* MRN field — only for patients */}
+        {role === 'patient' && (
+          <div className="af-field">
+            <label className="af-label">MRN Number</label>
+            <div className={`af-input-wrap${errors.mrn ? ' af-input-wrap--err' : ''}`}>
+              <svg className="af-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M2 7h12M5 10.5h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input type="text" placeholder="Enter your MRN" autoComplete="off"
+                value={form.mrn} onChange={e => setForm(f => ({ ...f, mrn: e.target.value }))}
+                disabled={loading} className="af-input" />
+            </div>
+            {errors.mrn && <span className="af-err">{errors.mrn}</span>}
           </div>
-          {errors.mrn && <span className="af-err">{errors.mrn}</span>}
-        </div>
+        )}
 
         <div className="af-field">
           <label className="af-label">Username</label>

@@ -175,7 +175,7 @@ export default function Settings() {
   );
 }
 
-const styles: Record<string, unknown> = {
+const styles = {
   page: {
     minHeight: '100vh',
     backgroundColor: '#f0f8fa',

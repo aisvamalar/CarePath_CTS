@@ -5,20 +5,14 @@ import MessageBubble, { TypingIndicator } from '../components/MessageBubble';
 import ChatInput from '../components/ChatInput';
 import SafetyChecklist from '../components/SafetyChecklist';
 import VerdictCard from '../components/VerdictCard';
+import CareNavigation from '../components/CareNavigation';
 import { useApp } from '../context/AppContext';
-import { intakeAPI, safetyAPI, pathwayAPI } from '../services/api';
+import { intakeAPI, safetyAPI, chatAPI } from '../services/api';
 import type { RedFlagsPayload } from '../services/api';
 
 let robotImg: string;
 try { robotImg = new URL('../assets/robot.png', import.meta.url).href; }
 catch { robotImg = new URL('../assets/hero.png', import.meta.url).href; }
-
-const SUGGESTION_CARDS = [
-  { text: 'Check my symptoms', icon: '🩺' },
-  { text: 'Ask a health question', icon: '💬' },
-  { text: 'My medications', icon: '💊' },
-  { text: 'Prepare for an appointment', icon: '📅' },
-];
 
 export default function Chat() {
   const { state, dispatch, activeConversation, generateId } = useApp();
@@ -27,8 +21,6 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [safetyLoading, setSafetyLoading] = useState(false);
-  const [pathwayLoading, setPathwayLoading] = useState(false);
-  const [pathwayResult, setPathwayResult] = useState<Record<string, unknown> | null>(null);
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
 
   // Redirect to login if not authenticated
@@ -72,6 +64,8 @@ export default function Chat() {
       title: 'New Assessment',
       messages: [],
       sessionId: null,
+      chatSessionId: null,
+      isPinned: false,
       intakeFeatures: null,
       redFlags: null,
       safetyResult: null,
@@ -80,14 +74,24 @@ export default function Chat() {
     };
 
     dispatch({ type: 'NEW_CONVERSATION', payload: newConv });
-    setPathwayResult(null);
 
     try {
+      // Create backend chat history session for persistence
+      const chatSession = await chatAPI.create({ patient_id: state.patient.patient_id, title: 'New Assessment' });
+      dispatch({ type: 'SET_CHAT_SESSION_ID', payload: { conversationId: convId, chatSessionId: chatSession.session_id } });
+
+      // Create intake session for triage
       const session = await intakeAPI.createSession(state.patient.patient_id);
       dispatch({ type: 'SET_SESSION_ID', payload: { conversationId: convId, sessionId: session.session_id } });
 
       const firstQ = session.next_question ?? 'Hello! I\'m your CarePath triage assistant. What is your main symptom today?';
-      addMessage(convId, 'assistant', `Hello! I'm your CarePath triage assistant.\n\n${firstQ}`);
+      const greeting = `Hello! I'm your CarePath triage assistant.\n\n${firstQ}`;
+      addMessage(convId, 'assistant', greeting);
+
+      // Persist greeting to chat history
+      try {
+        await chatAPI.sendMessage(chatSession.session_id, greeting, { role_override: 'assistant' });
+      } catch { /* non-critical */ }
     } catch {
       addMessage(convId, 'assistant', 'Hello! I\'m your CarePath triage assistant. I\'m having trouble connecting to the server. Please check your connection and try again.');
       setError('Failed to start session. Please try again.');
@@ -100,7 +104,7 @@ export default function Chat() {
   const handleSendMessage = useCallback(
     async (content: string) => {
       if (!activeConversation || loading) return;
-      const { id: convId, sessionId } = activeConversation;
+      const { id: convId, sessionId, chatSessionId } = activeConversation;
 
       if (!sessionId) {
         setError('Session not started. Please start a new chat.');
@@ -111,20 +115,19 @@ export default function Chat() {
       addMessage(convId, 'user', content);
       setLoading(true);
 
+      // Persist user message to chat history (fire-and-forget)
+      if (chatSessionId) {
+        chatAPI.sendMessage(chatSessionId, content).catch(() => { /* non-critical */ });
+      }
+
       // Update conversation title from first user message
       if (activeConversation.messages.filter((m) => m.role === 'user').length === 0) {
         const titleWords = content.split(' ').slice(0, 5).join(' ');
-        dispatch({
-          type: 'ADD_MESSAGE',
-          payload: {
-            conversationId: convId,
-            message: { id: 'TITLE_HACK', role: 'user', content: 'TITLE_HACK', timestamp: new Date() },
-          },
-        });
-        // Patch title via a small hack — we'll update the conversation title
-        const updatedConv = state.conversations.find((c) => c.id === convId);
-        if (updatedConv) {
-          updatedConv.title = titleWords.length > 3 ? titleWords : content.slice(0, 30);
+        const newTitle = titleWords.length > 3 ? titleWords : content.slice(0, 30);
+        dispatch({ type: 'RENAME_CONVERSATION', payload: { conversationId: convId, title: newTitle } });
+        // Also update title in backend
+        if (chatSessionId) {
+          chatAPI.updateTitle(chatSessionId, newTitle).catch(() => { /* non-critical */ });
         }
       }
 
@@ -132,7 +135,8 @@ export default function Chat() {
         const res = await intakeAPI.sendMessage(sessionId, content);
 
         if (res.status === 'ERROR') {
-          addMessage(convId, 'assistant', res.error_detail ?? 'Something went wrong. Please try again.');
+          const errMsg = res.error_detail ?? 'Something went wrong. Please try again.';
+          addMessage(convId, 'assistant', errMsg);
           return;
         }
 
@@ -140,17 +144,20 @@ export default function Chat() {
           dispatch({ type: 'SET_INTAKE_FEATURES', payload: { conversationId: convId, features: res.extracted } });
           // Update title from chief complaint
           if (res.extracted.chief_complaint) {
-            const updatedConv = state.conversations.find((c) => c.id === convId);
-            if (updatedConv) updatedConv.title = res.extracted.chief_complaint;
+            dispatch({ type: 'RENAME_CONVERSATION', payload: { conversationId: convId, title: res.extracted.chief_complaint } });
+            if (chatSessionId) {
+              chatAPI.updateTitle(chatSessionId, res.extracted.chief_complaint).catch(() => { /* non-critical */ });
+            }
           }
         }
 
         if (res.status === 'COMPLETE') {
-          addMessage(
-            convId,
-            'assistant',
-            'Thank you — I have all the information I need.\n\nNow I need to ask you a few quick YES/NO questions about severe symptoms. Please answer honestly — this helps determine if you need immediate emergency care.',
-          );
+          // Use the backend's completion message verbatim so the two stay in sync;
+          // fall back to a local message only if the backend didn't provide one.
+          const completeMsg = res.next_question?.trim()
+            ? res.next_question
+            : 'Thank you — I have all the information I need.\n\nNow I need to ask you a few quick YES/NO questions about severe symptoms. Please answer honestly — this helps determine if you need immediate emergency care.';
+          addMessage(convId, 'assistant', completeMsg);
           dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'safety' } });
         } else {
           if (res.next_question) {
@@ -164,7 +171,7 @@ export default function Chat() {
         setLoading(false);
       }
     },
-    [activeConversation, loading, addMessage, dispatch, state.conversations],
+    [activeConversation, loading, addMessage, dispatch],
   );
 
   // ── Safety checklist submit ──
@@ -179,22 +186,11 @@ export default function Chat() {
 
       try {
         await safetyAPI.submitRedFlags(sessionId, flags);
+        // The backend now runs the avoidable-ED model inside /evaluate and returns the
+        // pathway (decision + risk + care plan) embedded in the response.
         const evalResult = await safetyAPI.evaluate(sessionId);
         dispatch({ type: 'SET_SAFETY_RESULT', payload: { conversationId: convId, result: evalResult } });
         dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'verdict' } });
-
-        // If no emergency, trigger pathway
-        if (evalResult.result === 'NO' && state.patient?.patient_id) {
-          setPathwayLoading(true);
-          try {
-            const pathway = await pathwayAPI.triggerPathway(state.patient.patient_id);
-            setPathwayResult(pathway as Record<string, unknown>);
-          } catch {
-            // Pathway errors are non-critical
-          } finally {
-            setPathwayLoading(false);
-          }
-        }
       } catch {
         setError('Safety evaluation failed. Please try again.');
       } finally {
@@ -219,12 +215,21 @@ export default function Chat() {
         <div style={styles.scrollArea}>
           <VerdictCard
             result={activeConversation.safetyResult}
-            intakeFeatures={activeConversation.intakeFeatures}
-            redFlags={activeConversation.redFlags ?? null}
             onNewChat={handleNewChat}
-            pathwayLoading={pathwayLoading}
-            pathwayResult={pathwayResult}
           />
+          {/* The model marks the visit POTENTIALLY_AVOIDABLE → run the alternate care
+              pathway + booking. If it's NOT_AVOIDABLE (ED needed), VerdictCard shows the
+              emergency care plan and we do not offer self-service booking. */}
+          {activeConversation.safetyResult.result === 'NO' &&
+            activeConversation.safetyResult.pathway?.decision === 'POTENTIALLY_AVOIDABLE' && (
+              <CareNavigation
+                mrn={state.patient?.mrn ?? state.patient?.ehr?.mrn ?? null}
+                patientId={state.patient?.patient_id ?? null}
+                intakeFeatures={activeConversation.intakeFeatures}
+                patientAge={state.patient?.ehr?.age ?? null}
+                patientGender={state.patient?.ehr?.gender ?? null}
+              />
+            )}
           <div ref={messagesEndRef} />
         </div>
       );
@@ -284,10 +289,20 @@ export default function Chat() {
     if (!sessionId) return;
     addMessage(convId, 'user', content);
     setLoading(true);
+
+    // Persist to chat history
+    const conv = state.conversations.find(c => c.id === convId);
+    if (conv?.chatSessionId) {
+      chatAPI.sendMessage(conv.chatSessionId, content).catch(() => { /* non-critical */ });
+    }
+
     try {
       const res = await intakeAPI.sendMessage(sessionId, content);
       if (res.status === 'COMPLETE') {
-        addMessage(convId, 'assistant', 'Thank you — I have all the information I need.\n\nNow I need to ask you a few YES/NO questions about severe symptoms.');
+        const completeMsg = res.next_question?.trim()
+          ? res.next_question
+          : 'Thank you — I have all the information I need.\n\nNow I need to ask you a few YES/NO questions about severe symptoms.';
+        addMessage(convId, 'assistant', completeMsg);
         dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'safety' } });
       } else if (res.next_question) {
         addMessage(convId, 'assistant', res.next_question);
@@ -490,7 +505,13 @@ function EmptyState({
       <div className="ce-input-display" onClick={onNewChat} role="button" tabIndex={0} aria-label="Start new chat">
         <span className="ce-input-display__sparkle">✦✦</span>
         <span className="ce-input-display__text">Describe how you're feeling or ask anything...</span>
-        <span className="ce-input-display__mic">🎤</span>
+        <span className="ce-input-display__mic">
+          <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="7" y="2" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.6"/>
+            <path d="M4 10a6 6 0 0012 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <path d="M10 16v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+          </svg>
+        </span>
       </div>
     </div>
   );
