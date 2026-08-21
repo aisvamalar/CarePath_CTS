@@ -21,6 +21,7 @@ import type {
 } from '../services/careService';
 import { appointmentStore, type StoredAppointment } from '../services/appointmentStore';
 import { toApiError } from '../services/apiClient';
+import { patientAPI } from '../services/api';
 import type { IntakeFeatures } from '../services/api';
 
 interface CareNavigationProps {
@@ -97,12 +98,20 @@ export default function CareNavigation({
     setStage('navigating');
     setError('');
     try {
-      if (!mrn) {
+      // Resolve MRN: use the prop, or lazily fetch from the patient dashboard.
+      let resolvedMrn = mrn;
+      if (!resolvedMrn) {
+        try {
+          const dash = await patientAPI.dashboard();
+          resolvedMrn = dash?.patient?.mrn ?? null;
+        } catch { /* dashboard unavailable */ }
+      }
+      if (!resolvedMrn) {
         throw new Error('no-mrn');
       }
       const location = await getLocation();
       const res = await careService.navigate({
-        mrn,
+        mrn: resolvedMrn,
         patient: {
           primary_symptom_category: intakeFeatures?.chief_complaint?.trim() || 'general',
           pain_level_self_reported: intakeFeatures?.pain_scale ?? null,
