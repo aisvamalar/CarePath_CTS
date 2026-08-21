@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import MessageBubble, { TypingIndicator } from '../components/MessageBubble';
 import ChatInput from '../components/ChatInput';
 import SafetyChecklist from '../components/SafetyChecklist';
+import SmartSafetyQuestions from '../components/SmartSafetyQuestions';
 import VerdictCard from '../components/VerdictCard';
 import CareNavigation from '../components/CareNavigation';
 import { useApp } from '../context/AppContext';
@@ -22,6 +23,7 @@ export default function Chat() {
   const [error, setError] = useState('');
   const [safetyLoading, setSafetyLoading] = useState(false);
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
+  const [useSmartSafety, setUseSmartSafety] = useState(true); // Toggle between smart and full checklist
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -204,6 +206,15 @@ export default function Chat() {
   const renderMainArea = () => {
     const phase = activeConversation?.phase ?? state.phase;
 
+    // Debug logging
+    console.log('[Chat] renderMainArea:', {
+      phase,
+      hasActiveConv: !!activeConversation,
+      sessionId: activeConversation?.sessionId,
+      chiefComplaint: activeConversation?.intakeFeatures?.chief_complaint,
+      useSmartSafety,
+    });
+
     // Empty state — no active conversation
     if (!activeConversation) {
       return <EmptyState onSuggestion={handleSuggestion} onNewChat={handleNewChat} />;
@@ -228,6 +239,7 @@ export default function Chat() {
                 intakeFeatures={activeConversation.intakeFeatures}
                 patientAge={state.patient?.ehr?.age ?? null}
                 patientGender={state.patient?.ehr?.gender ?? null}
+                onNewConversation={handleNewChat}
               />
             )}
           <div ref={messagesEndRef} />
@@ -245,7 +257,20 @@ export default function Chat() {
               <MessageBubble key={m.id} message={m} />
             ))}
           </div>
-          <SafetyChecklist onSubmit={handleSafetySubmit} loading={safetyLoading} />
+          
+          {/* Smart safety questions or fallback to full checklist */}
+          {useSmartSafety && activeConversation.sessionId && activeConversation.intakeFeatures?.chief_complaint ? (
+            <SmartSafetyQuestions
+              sessionId={activeConversation.sessionId}
+              chiefComplaint={activeConversation.intakeFeatures.chief_complaint}
+              extractedFeatures={activeConversation.intakeFeatures}
+              onSubmit={handleSafetySubmit}
+              loading={safetyLoading}
+            />
+          ) : (
+            <SafetyChecklist onSubmit={handleSafetySubmit} loading={safetyLoading} />
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
       );

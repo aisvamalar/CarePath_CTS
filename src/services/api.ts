@@ -255,6 +255,12 @@ export const safetyAPI = {
 
   getAssessment: (session_id: string) =>
     client.get(`/safety/sessions/${session_id}/assessment`).then(r => r.data),
+
+  /** Smart red flag filtering using LLM */
+  smartFilter: (session_id: string, chief_complaint: string, extracted_features: Record<string, unknown>) =>
+    client.post(`/safety/sessions/${session_id}/smart-filter`, extracted_features, {
+      params: { chief_complaint },
+    }).then(r => r.data),
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

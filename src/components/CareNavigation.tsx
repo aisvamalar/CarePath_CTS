@@ -23,6 +23,7 @@ import { appointmentStore, type StoredAppointment } from '../services/appointmen
 import { toApiError } from '../services/apiClient';
 import { patientAPI } from '../services/api';
 import type { IntakeFeatures } from '../services/api';
+import { useApp } from '../context/AppContext';
 
 interface CareNavigationProps {
   mrn: string | null;
@@ -30,6 +31,7 @@ interface CareNavigationProps {
   intakeFeatures: IntakeFeatures | null;
   patientAge?: number | null;
   patientGender?: string | null;
+  onNewConversation?: () => void;
 }
 
 const CARE_TYPE_LABEL: Record<string, string> = {
@@ -40,24 +42,27 @@ const CARE_TYPE_LABEL: Record<string, string> = {
   DENTISTRY: 'Dentistry',
 };
 
-/** Best-effort browser geolocation with a graceful fallback. */
-function getLocation(): Promise<LocationInput> {
-  return new Promise((resolve) => {
-    if (!('geolocation' in navigator)) {
-      resolve({ radius_km: 25 });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) =>
-        resolve({
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          radius_km: 25,
-        }),
-      () => resolve({ radius_km: 25 }),
-      { timeout: 8000, maximumAge: 300000 },
-    );
-  });
+/** Get location from app context (user-selected US location with coordinates). */
+function getLocationFromContext(selectedLocation: string): LocationInput {
+  // Map location names to coordinates and addresses
+  const locationMap: Record<string, { latitude: number; longitude: number; address: string }> = {
+    'Austin, Texas': { latitude: 30.2672, longitude: -97.7431, address: 'Austin, TX 78701' },
+    'San Francisco, California': { latitude: 37.7749, longitude: -122.4194, address: 'San Francisco, CA 94102' },
+    'New York City, New York': { latitude: 40.7128, longitude: -74.0060, address: 'New York, NY 10001' },
+    'Boston, Massachusetts': { latitude: 42.3601, longitude: -71.0589, address: 'Boston, MA 02108' },
+    'Seattle, Washington': { latitude: 47.6062, longitude: -122.3321, address: 'Seattle, WA 98101' },
+    'Chicago, Illinois': { latitude: 41.8781, longitude: -87.6298, address: 'Chicago, IL 60601' },
+    'Miami, Florida': { latitude: 25.7617, longitude: -80.1918, address: 'Miami, FL 33101' },
+  };
+  
+  const loc = locationMap[selectedLocation] || locationMap['Austin, Texas'];
+  
+  return {
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    address: loc.address,
+    radius_km: 25,
+  };
 }
 
 function formatSlot(slot: Slot): { day: string; time: string } {
@@ -74,7 +79,9 @@ export default function CareNavigation({
   intakeFeatures,
   patientAge,
   patientGender,
+  onNewConversation,
 }: CareNavigationProps) {
+  const { state } = useApp();
   const [stage, setStage] = useState<'navigating' | 'ready' | 'error'>('navigating');
   const [error, setError] = useState('');
   const [nav, setNav] = useState<NavigateResponse | null>(null);
@@ -93,13 +100,25 @@ export default function CareNavigation({
   const [agentBusy, setAgentBusy] = useState(false);
 
   const ranOnce = useRef(false);
+  const isNavigating = useRef(false);
+  const [loadingStatus, setLoadingStatus] = useState<string>('Initializing...');
 
   const runNavigate = useCallback(async () => {
+    // Prevent duplicate calls
+    if (isNavigating.current) {
+      console.log('[CareNavigation] Already navigating, skipping duplicate call');
+      return;
+    }
+    
+    isNavigating.current = true;
     setStage('navigating');
     setError('');
+    setLoadingStatus('Analyzing your symptoms...');
+    
     try {
       // Resolve MRN: use the prop, or lazily fetch from the patient dashboard
       // (which queries the EHR table by patient_id on the backend).
+      setLoadingStatus('Retrieving your medical records...');
       let resolvedMrn = mrn;
       if (!resolvedMrn) {
         try {
@@ -110,7 +129,14 @@ export default function CareNavigation({
       if (!resolvedMrn) {
         throw new Error('no-mrn');
       }
-      const location = await getLocation();
+      
+      setLoadingStatus('Determining the right type of care for you...');
+      const location = getLocationFromContext(state.selectedLocation);
+      
+      // Add a small delay to show the status
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setLoadingStatus('Finding nearby healthcare providers...');
+      
       const res = await careService.navigate({
         mrn: resolvedMrn,
         patient: {
@@ -123,6 +149,10 @@ export default function CareNavigation({
         },
         location,
       });
+      
+      setLoadingStatus('Ranking providers by distance and availability...');
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       setNav(res);
       setStage('ready');
     } catch (err) {
@@ -132,8 +162,10 @@ export default function CareNavigation({
         setError(toApiError(err).message);
       }
       setStage('error');
+    } finally {
+      isNavigating.current = false;
     }
-  }, [mrn, intakeFeatures, patientAge, patientGender]);
+  }, [mrn, intakeFeatures, patientAge, patientGender, state.selectedLocation]);
 
   useEffect(() => {
     if (ranOnce.current) return;
@@ -148,6 +180,8 @@ export default function CareNavigation({
       setSelectedSlotId(null);
       setSlots(null);
       setSlotsLoading(true);
+      setLoadingStatus('Checking appointment availability...');
+      
       try {
         const res = await careService.availability({
           recommendation_id: nav.recommendation_id,
@@ -169,6 +203,8 @@ export default function CareNavigation({
     if (!nav || !selectedProvider || !selectedSlotId || !patientId) return;
     setBooking(true);
     setError('');
+    setLoadingStatus('Booking your appointment...');
+    
     try {
       const res = await careService.book({
         patient_id: patientId,
@@ -176,6 +212,7 @@ export default function CareNavigation({
         provider_id: selectedProvider.provider_id,
         slot_id: selectedSlotId,
       });
+      setLoadingStatus('Confirming your booking...');
       const saved = appointmentStore.upsertFromResponse(res, nav.recommendation_id);
       setAppointment(saved);
     } catch (err) {
@@ -258,7 +295,12 @@ export default function CareNavigation({
       <div style={styles.panel} className="fade-in">
         <div style={styles.loadingRow}>
           <span style={styles.spinner} />
-          <span style={styles.loadingText}>Finding the right care option for you…</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <span style={styles.loadingText}>{loadingStatus}</span>
+            <span style={{ ...styles.loadingText, fontSize: '0.85rem', opacity: 0.6 }}>
+              This may take 30-60 seconds...
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -297,6 +339,7 @@ export default function CareNavigation({
           busy={actionBusy}
           onCancel={cancelAppointment}
           onReschedule={startReschedule}
+          onNewAssessment={onNewConversation}
         />
       ) : (
         <>
@@ -340,7 +383,7 @@ export default function CareNavigation({
               {slotsLoading ? (
                 <div style={styles.loadingRow}>
                   <span style={styles.spinner} />
-                  <span style={styles.loadingText}>Loading times…</span>
+                  <span style={styles.loadingText}>{loadingStatus}</span>
                 </div>
               ) : slots && slots.length > 0 ? (
                 <>
@@ -365,7 +408,12 @@ export default function CareNavigation({
                     onClick={() => void confirmBooking()}
                     disabled={!selectedSlotId || booking}
                   >
-                    {booking ? 'Booking…' : 'Confirm booking'}
+                    {booking ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={styles.spinner} />
+                        {loadingStatus}
+                      </span>
+                    ) : 'Confirm booking'}
                   </button>
                 </>
               ) : (
@@ -417,11 +465,13 @@ function AppointmentConfirmation({
   busy,
   onCancel,
   onReschedule,
+  onNewAssessment,
 }: {
   appointment: StoredAppointment;
   busy: boolean;
   onCancel: () => void;
   onReschedule: () => void;
+  onNewAssessment?: () => void;
 }) {
   const cancelled = appointment.status === 'CANCELLED';
   const slotStart = appointment.slot?.start_time ? new Date(appointment.slot.start_time) : null;
@@ -455,6 +505,18 @@ function AppointmentConfirmation({
           <button style={styles.ghostBtn} onClick={onReschedule} disabled={busy}>Reschedule</button>
           <button style={styles.dangerBtn} onClick={onCancel} disabled={busy}>
             {busy ? 'Cancelling…' : 'Cancel'}
+          </button>
+        </div>
+      )}
+      
+      {/* New Assessment Prompt */}
+      {!cancelled && onNewAssessment && (
+        <div style={styles.newAssessmentSection}>
+          <div style={styles.divider} />
+          <p style={styles.helpText}>Do you have any other health concerns?</p>
+          <button style={styles.newAssessmentBtn} onClick={onNewAssessment}>
+            <span style={styles.btnIcon}>📋</span>
+            Start New Assessment
           </button>
         </div>
       )}
@@ -553,6 +615,41 @@ const styles: Record<string, React.CSSProperties> = {
   dangerBtn: {
     padding: '8px 16px', borderRadius: 10, border: '1px solid #d92d20', background: 'transparent',
     color: '#d92d20', fontWeight: 600, cursor: 'pointer',
+  },
+  divider: {
+    height: '1px',
+    backgroundColor: '#e3e8ea',
+    margin: '20px 0',
+  },
+  newAssessmentSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '12px',
+    marginTop: '8px',
+  },
+  helpText: {
+    fontSize: '0.9375rem',
+    color: '#6b7c84',
+    textAlign: 'center',
+    margin: 0,
+  },
+  newAssessmentBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 24px',
+    borderRadius: 12,
+    border: '2px solid #e06a4f',
+    backgroundColor: '#fff',
+    color: '#e06a4f',
+    fontSize: '0.9375rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  btnIcon: {
+    fontSize: '1.125rem',
   },
   agentWrap: {
     display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8,
