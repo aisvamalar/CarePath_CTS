@@ -98,7 +98,8 @@ export default function CareNavigation({
     setStage('navigating');
     setError('');
     try {
-      // Resolve MRN: use the prop, or lazily fetch from the patient dashboard.
+      // Resolve MRN: use the prop, or lazily fetch from the patient dashboard
+      // (which queries the EHR table by patient_id on the backend).
       let resolvedMrn = mrn;
       if (!resolvedMrn) {
         try {

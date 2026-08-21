@@ -176,7 +176,7 @@ function LoginForm({ onSwitch, role }: { onSwitch: () => void; role: UserRole })
         try { patient = await patientAPI.getMe(); }
         catch { patient = { patient_id: form.username, username: form.username }; }
 
-        // Fetch the patient dashboard which includes the MRN (patient-accessible).
+        // Fetch the patient dashboard which returns the MRN from the EHR table.
         if (patient.patient_id) {
           try {
             const dash = await patientAPI.dashboard();
@@ -184,9 +184,7 @@ function LoginForm({ onSwitch, role }: { onSwitch: () => void; role: UserRole })
             if (mrn) {
               patient = { ...patient, mrn };
             }
-          } catch {
-            // Dashboard unavailable — MRN may be missing for care navigation.
-          }
+          } catch { /* dashboard unavailable */ }
         }
 
         dispatch({ type: 'LOGIN', payload: { token: res.access_token, patient } });
