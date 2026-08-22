@@ -324,12 +324,14 @@ export default function CareManagerDashboard() {
           ) : (
             <div className="cmp-donutwrap">
               <div className="cmp-donut">
-                <ResponsiveContainer width="100%" height={170}>
+                <ResponsiveContainer width={170} height={170}>
                   <PieChart>
                     <Pie
                       data={workload.slices}
                       dataKey="value"
                       nameKey="name"
+                      cx="50%"
+                      cy="50%"
                       innerRadius={52}
                       outerRadius={DONUT_OUTER}
                       paddingAngle={2}
@@ -368,22 +370,36 @@ export default function CareManagerDashboard() {
           ) : !hasAnyRegistration ? (
             <EmptyState compact icon="📈" title="No registrations" message="No patients were registered in the last 7 days." />
           ) : (
-            <ResponsiveContainer width="100%" height={170}>
-              <LineChart data={registrationTrend} margin={{ top: 8, right: 10, bottom: 4, left: -18 }}>
-                <CartesianGrid stroke="rgba(242,132,107,0.12)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#a8a8a8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#a8a8a8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<ChartTip suffix=" patients" />} />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#f2846b"
-                  strokeWidth={2.2}
-                  dot={{ r: 3, fill: '#f2846b', strokeWidth: 0 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div style={{ width: '100%', height: 170 }}>
+              <ResponsiveContainer>
+                <LineChart data={registrationTrend} margin={{ top: 12, right: 16, bottom: 8, left: -20 }}>
+                  <CartesianGrid stroke="rgba(242,132,107,0.12)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="label" 
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }} 
+                    axisLine={false} 
+                    tickLine={false}
+                    height={20}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }} 
+                    axisLine={false} 
+                    tickLine={false} 
+                    allowDecimals={false}
+                    width={30}
+                  />
+                  <Tooltip content={<ChartTip suffix=" patients" />} />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#f2846b"
+                    strokeWidth={2.4}
+                    dot={{ r: 4, fill: '#f2846b', strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: '#e06a4f' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </section>
 
@@ -400,12 +416,14 @@ export default function CareManagerDashboard() {
           ) : (
             <div className="cmp-donutwrap">
               <div className="cmp-donut">
-                <ResponsiveContainer width="100%" height={170}>
+                <ResponsiveContainer width={170} height={170}>
                   <PieChart>
                     <Pie
                       data={riskSlices}
                       dataKey="value"
                       nameKey="name"
+                      cx="50%"
+                      cy="50%"
                       innerRadius={52}
                       outerRadius={DONUT_OUTER}
                       paddingAngle={2}
