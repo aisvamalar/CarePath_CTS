@@ -352,8 +352,38 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
         </div>
       )}
 
-      {/* Bottom: Settings + Logout + Profile */}
+      {/* Bottom: Location Selector, Settings + Logout + Profile */}
       <div className="sb-bottom">
+        {/* Location Selector */}
+        <div className="sb-location-selector">
+          <label htmlFor="location-select" style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.25rem', display: 'block' }}>
+            Location
+          </label>
+          <select
+            id="location-select"
+            value={state.selectedLocation}
+            onChange={(e) => dispatch({ type: 'SET_LOCATION', payload: e.target.value })}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              fontSize: '0.85rem',
+              border: '1px solid rgba(0,0,0,0.1)',
+              borderRadius: '0.375rem',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              marginBottom: '0.75rem'
+            }}
+          >
+            <option value="Austin, Texas">Austin, Texas</option>
+            <option value="San Francisco, California">San Francisco, California</option>
+            <option value="New York City, New York">New York City, New York</option>
+            <option value="Boston, Massachusetts">Boston, Massachusetts</option>
+            <option value="Seattle, Washington">Seattle, Washington</option>
+            <option value="Chicago, Illinois">Chicago, Illinois</option>
+            <option value="Miami, Florida">Miami, Florida</option>
+          </select>
+        </div>
+        
         <button className="sb-bottom-btn" onClick={() => navigate('/settings')}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.4"/>

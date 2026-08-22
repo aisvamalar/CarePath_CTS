@@ -140,6 +140,10 @@ export default function Chat() {
         if (res.status === 'ERROR') {
           const errMsg = res.error_detail ?? 'Something went wrong. Please try again.';
           addMessage(convId, 'assistant', errMsg);
+          // Persist error message to chat history
+          if (chatSessionId) {
+            chatAPI.sendMessage(chatSessionId, errMsg, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+          }
           return;
         }
 
@@ -161,14 +165,27 @@ export default function Chat() {
             ? res.next_question
             : 'Thank you — I have all the information I need.\n\nNow I need to ask you a few quick YES/NO questions about severe symptoms. Please answer honestly — this helps determine if you need immediate emergency care.';
           addMessage(convId, 'assistant', completeMsg);
+          // Persist completion message to chat history
+          if (chatSessionId) {
+            chatAPI.sendMessage(chatSessionId, completeMsg, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+          }
           dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'safety' } });
         } else {
           if (res.next_question) {
             addMessage(convId, 'assistant', res.next_question);
+            // Persist assistant response to chat history
+            if (chatSessionId) {
+              chatAPI.sendMessage(chatSessionId, res.next_question, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+            }
           }
         }
       } catch {
-        addMessage(convId, 'assistant', 'Something went wrong. Please try again.');
+        const errorMsg = 'Something went wrong. Please try again.';
+        addMessage(convId, 'assistant', errorMsg);
+        // Persist error message to chat history
+        if (chatSessionId) {
+          chatAPI.sendMessage(chatSessionId, errorMsg, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+        }
         setError('Message failed. Please check your connection.');
       } finally {
         setLoading(false);
@@ -337,12 +354,25 @@ export default function Chat() {
           ? res.next_question
           : 'Thank you — I have all the information I need.\n\nNow I need to ask you a few YES/NO questions about severe symptoms.';
         addMessage(convId, 'assistant', completeMsg);
+        // Persist assistant response to chat history
+        if (conv?.chatSessionId) {
+          chatAPI.sendMessage(conv.chatSessionId, completeMsg, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+        }
         dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'safety' } });
       } else if (res.next_question) {
         addMessage(convId, 'assistant', res.next_question);
+        // Persist assistant response to chat history
+        if (conv?.chatSessionId) {
+          chatAPI.sendMessage(conv.chatSessionId, res.next_question, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+        }
       }
     } catch {
-      addMessage(convId, 'assistant', 'Something went wrong. Please try again.');
+      const errorMsg = 'Something went wrong. Please try again.';
+      addMessage(convId, 'assistant', errorMsg);
+      // Persist error message to chat history
+      if (conv?.chatSessionId) {
+        chatAPI.sendMessage(conv.chatSessionId, errorMsg, { role_override: 'assistant' }).catch(() => { /* non-critical */ });
+      }
     } finally {
       setLoading(false);
     }

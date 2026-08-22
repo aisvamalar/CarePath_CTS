@@ -126,6 +126,18 @@ export const careManagerService = {
     client
       .get<PostDischargeStatus>(`/care-manager/patients/${patientId}/post-discharge/`)
       .then((r) => r.data),
+
+  /** GET /care-manager/patients/{patient_id}/appointment-context — appointment context */
+  getAppointmentContext: (patientId: string) =>
+    client
+      .get<any>(`/care-manager/patients/${patientId}/appointment-context`)
+      .then((r) => r.data),
+
+  /** POST /care-manager/patients/{patient_id}/book-appointment — book appointment */
+  bookAppointment: (patientId: string, bookingData: any) =>
+    client
+      .post<any>(`/care-manager/patients/${patientId}/book-appointment`, bookingData)
+      .then((r) => r.data),
 };
 
 export default careManagerService;

@@ -59,6 +59,8 @@ export interface AppState {
   sidebarOpen: boolean;
   /** Whether initial chat list has been loaded from backend */
   chatsLoaded: boolean;
+  /** Selected US location for navigation agent */
+  selectedLocation: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,7 +88,8 @@ type Action =
   | { type: 'SET_CHATS_LOADED'; payload: boolean }
   | { type: 'SET_THEME'; payload: Theme }
   | { type: 'TOGGLE_SIDEBAR' }
-  | { type: 'SET_SIDEBAR'; payload: boolean };
+  | { type: 'SET_SIDEBAR'; payload: boolean }
+  | { type: 'SET_LOCATION'; payload: string };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reducer
@@ -101,6 +104,7 @@ const initialState: AppState = {
   theme: (localStorage.getItem('cp_theme') as Theme) ?? 'light',
   sidebarOpen: true,
   chatsLoaded: false,
+  selectedLocation: localStorage.getItem('cp_location') ?? 'Austin, Texas',
 };
 
 function reducer(state: AppState, action: Action): AppState {
@@ -267,6 +271,10 @@ function reducer(state: AppState, action: Action): AppState {
 
     case 'SET_SIDEBAR':
       return { ...state, sidebarOpen: action.payload };
+
+    case 'SET_LOCATION':
+      localStorage.setItem('cp_location', action.payload);
+      return { ...state, selectedLocation: action.payload };
 
     default:
       return state;

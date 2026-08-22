@@ -32,6 +32,69 @@ export type {
   CareManagerProfile,
 } from './careManagerService';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | 'task_reminder'
+  | 'appointment_reminder'
+  | 'care_manager_message'
+  | 'task_reframed'
+  | 'followup_scheduled';
+
+export type NotificationStatus = 'pending' | 'read' | 'dismissed' | 'acted_upon';
+
+export interface Notification {
+  id: string;
+  patient_id: string;
+  notification_type: NotificationType;
+  title: string;
+  message: string;
+  task_index?: number | null;
+  task_text?: string | null;
+  metadata: Record<string, unknown>;
+  status: NotificationStatus;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  scheduled_for?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  acted_at?: string | null;
+  created_at: string;
+  expires_at?: string | null;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+  unread_count: number;
+  pending_count: number;
+}
+
+export interface TaskCompletionRequest {
+  task_index: number;
+  completed: boolean;
+  reason?: string;
+}
+
+export interface TaskCompletionResponse {
+  status: 'completed' | 'reframed';
+  task: {
+    task: string;
+    status: string;
+    reframed?: boolean;
+    original_task?: string;
+  };
+  reframing?: {
+    original_task: string;
+    reframed_task: string;
+    reasoning: string;
+    difficulty_level: 'easier' | 'alternative' | 'extended_deadline';
+  };
+  notification?: Notification;
+  message: string;
+}
+
 export { ehrService } from './ehrService';
 export type {
   PatientListItem,
@@ -171,6 +234,10 @@ export const patientAPI = {
   /** Patient dashboard */
   dashboard: () =>
     client.get('/patient/dashboard').then(r => r.data),
+
+  /** Get my post-discharge care plan */
+  getMyCarePlan: () =>
+    client.get<PostDischargeStatus>('/patient/care-plan').then(r => r.data),
 
   /** EHR by numeric id (care-manager only) */
   getEHRById: (patientId: string | number) =>
@@ -320,6 +387,32 @@ export const predictionAPI = {
   /** Get latest prediction per model type */
   getLatest: (patient_id: string) =>
     client.get(`/patient/${patient_id}/latest-predictions`).then(r => r.data),
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications — /api/v1/notifications
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const notificationAPI = {
+  /** GET /notifications/ — list my notifications */
+  list: (params?: { status?: string; limit?: number; offset?: number }) =>
+    client.get<NotificationListResponse>('/notifications/', { params }).then(r => r.data),
+
+  /** GET /notifications/unread-count — badge counter */
+  getUnreadCount: () =>
+    client.get<{ unread_count: number; pending_count: number }>('/notifications/unread-count').then(r => r.data),
+
+  /** PATCH /notifications/{id} — update status */
+  updateStatus: (id: string, status: NotificationStatus) =>
+    client.patch<Notification>(`/notifications/${id}`, { 
+      status,
+      read_at: status === 'read' ? new Date().toISOString() : undefined,
+      acted_at: status === 'acted_upon' ? new Date().toISOString() : undefined,
+    }).then(r => r.data),
+
+  /** POST /notifications/tasks/respond — respond to task reminder */
+  respondToTask: (request: TaskCompletionRequest) =>
+    client.post<TaskCompletionResponse>('/notifications/tasks/respond', request).then(r => r.data),
 };
 
 export default client;

@@ -11,6 +11,7 @@ import { ErrorState, EmptyState, Skeleton, SkeletonCard } from '../../components
 import { ehrService, type PatientListItem } from '../../services/ehrService';
 import { careManagerService, type PostDischargeStatus } from '../../services/careManagerService';
 import { toApiError } from '../../services/apiClient';
+import CareplanGenerationModal from '../../components/CareplanGenerationModal';
 
 /** The journey mirrors the four agents the backend reports on. */
 const STAGES = ['Discharged', 'First Follow-up', 'Recovery Monitoring', 'Care Plan Complete'] as const;
@@ -41,6 +42,8 @@ export default function PostDischargePage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Stage | 'all'>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +98,24 @@ export default function PostDischargePage() {
     () => (selected === 'all' ? rows : rows.filter((r) => r.stage === selected)),
     [rows, selected],
   );
+
+  const handleGenerateCarePlan = (patient: PatientListItem) => {
+    setSelectedPatient({
+      id: patient.patient_id,
+      name: patient.name,
+    });
+    setModalOpen(true);
+  };
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setSelectedPatient(null);
+  };
+
+  const handleSendSuccess = () => {
+    // Refresh the patient list to show updated status
+    void load();
+  };
 
   return (
     <CareManagerLayout breadcrumb="Post Discharge">
@@ -243,9 +264,20 @@ export default function PostDischargePage() {
                           </div>
                         )}
 
-                        <button className="cp-btn cp-btn--sm cp-btn--ghost" onClick={() => navigate(`/care-manager/patients/${r.patient.id}`)}>
-                          Open patient record →
-                        </button>
+                        <div className="cmpd-item__actions">
+                          <button 
+                            className="cp-btn cp-btn--sm cp-btn--primary" 
+                            onClick={() => handleGenerateCarePlan(r.patient)}
+                          >
+                            🤖 Generate Care Plan
+                          </button>
+                          <button 
+                            className="cp-btn cp-btn--sm cp-btn--ghost" 
+                            onClick={() => navigate(`/care-manager/patients/${r.patient.id}`)}
+                          >
+                            Open patient record →
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -260,6 +292,16 @@ export default function PostDischargePage() {
         <section className="cmp-panel">
           <SkeletonCard lines={4} />
         </section>
+      )}
+
+      {/* Care Plan Generation Modal */}
+      {modalOpen && selectedPatient && (
+        <CareplanGenerationModal
+          patientId={selectedPatient.id}
+          patientName={selectedPatient.name}
+          onClose={handleModalClose}
+          onSendSuccess={handleSendSuccess}
+        />
       )}
     </CareManagerLayout>
   );

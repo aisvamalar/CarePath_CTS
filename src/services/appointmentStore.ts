@@ -33,6 +33,7 @@ export interface StoredAppointment {
   date?: string | null;
   time?: string | null;
   status: AppointmentStatus;
+  appointment_type?: 'regular' | 'post_discharge_followup' | null;
   recommendation_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -94,6 +95,7 @@ export const appointmentStore = {
       date: res.date ?? existing?.date ?? null,
       time: res.time ?? existing?.time ?? null,
       status: res.status,
+      appointment_type: (res as any).appointment_type ?? existing?.appointment_type ?? 'regular',
       recommendation_id: recommendationId ?? existing?.recommendation_id ?? null,
       created_at: existing?.created_at ?? now,
       updated_at: now,
