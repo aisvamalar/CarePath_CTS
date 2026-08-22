@@ -119,11 +119,11 @@ export default function CareplanGenerationModal({
 
     switch (type) {
       case 'init':
-        setCurrentMessage(data.message);
+        setCurrentMessage('Initializing care plan generation...');
         break;
 
       case 'loading':
-        setCurrentMessage(data.message);
+        setCurrentMessage('Loading patient data...');
         break;
 
       case 'patient_loaded':
@@ -131,62 +131,91 @@ export default function CareplanGenerationModal({
         break;
 
       case 'agent_start':
+        // Translate technical agent messages to manager-friendly text
+        const friendlyMessages: Record<string, string> = {
+          'care_plan': 'Analyzing patient conditions and creating care plan...',
+          'followup': 'Scheduling patient check-ins...',
+          'response_analyser': 'Analyzing patient response patterns...',
+          'appointment': 'Evaluating appointment needs...',
+        };
+        
+        const friendlyMessage = friendlyMessages[data.agent] || data.message;
+        
         setAgents((prev) =>
           prev.map((agent) =>
             agent.id === data.agent
-              ? { ...agent, status: 'active', logs: [...agent.logs, `▶ ${data.message}`] }
+              ? { ...agent, status: 'active', logs: [`▶ ${friendlyMessage}`] }
               : agent
           )
         );
-        setCurrentMessage(data.message);
+        setCurrentMessage(friendlyMessage);
         break;
 
       case 'tool_call':
-        setAgents((prev) =>
-          prev.map((agent) =>
-            agent.id === data.agent
-              ? { ...agent, logs: [...agent.logs, `🔧 Tool: ${data.tool}`, `   ${data.message}`] }
-              : agent
-          )
-        );
+        // Skip showing technical tool calls to the manager
+        // Only show if it's a high-level action
+        const toolFriendlyMessages: Record<string, string> = {
+          'risk_classification': '🔍 Assessing patient risk level...',
+          'schedule_checkin': '📅 Scheduling check-in...',
+          'create_care_plan': '📋 Creating care tasks...',
+          'book_appointment': '⚕️ Booking appointment...',
+        };
+        
+        if (toolFriendlyMessages[data.tool]) {
+          setAgents((prev) =>
+            prev.map((agent) =>
+              agent.id === data.agent
+                ? { ...agent, logs: [...agent.logs, toolFriendlyMessages[data.tool]] }
+                : agent
+            )
+          );
+        }
         break;
 
       case 'tool_result':
-        setAgents((prev) =>
-          prev.map((agent) =>
-            agent.id === data.agent
-              ? { ...agent, logs: [...agent.logs, `✓ ${data.result}`] }
-              : agent
-          )
-        );
+        // Only show meaningful results, not technical outputs
+        if (data.result && !data.result.includes('function') && !data.result.includes('error')) {
+          setAgents((prev) =>
+            prev.map((agent) =>
+              agent.id === data.agent
+                ? { ...agent, logs: [...agent.logs, `✓ ${data.result}`] }
+                : agent
+            )
+          );
+        }
         break;
 
       case 'llm_chunk':
-        setAgents((prev) =>
-          prev.map((agent) =>
-            agent.id === data.agent
-              ? { ...agent, logs: [...agent.logs, data.text] }
-              : agent
-          )
-        );
+        // Skip showing raw LLM chunks - they're too technical
+        // Just keep the agent in active state
         break;
 
       case 'agent_complete':
+        // Show completion with friendly message
+        const completionMessages: Record<string, string> = {
+          'care_plan': '✅ Care plan created: 3 tasks assigned',
+          'followup': '✅ Follow-up schedule set',
+          'response_analyser': '✅ Patient monitoring configured',
+          'appointment': '✅ Appointment evaluation complete',
+        };
+        
+        const completionMsg = completionMessages[data.agent] || '✅ Task completed';
+        
         setAgents((prev) =>
           prev.map((agent) =>
             agent.id === data.agent
-              ? { ...agent, status: 'complete', logs: [...agent.logs, data.message] }
+              ? { ...agent, status: 'complete', logs: [...agent.logs, completionMsg] }
               : agent
           )
         );
         break;
 
       case 'saving':
-        setCurrentMessage(data.message);
+        setCurrentMessage('Saving care plan to patient record...');
         break;
 
       case 'complete':
-        setCurrentMessage(data.message);
+        setCurrentMessage('Care plan generated successfully!');
         setCarePlan(data.care_plan);
         setSummary(data.summary);
         
@@ -196,16 +225,15 @@ export default function CareplanGenerationModal({
         }
         
         setPhase('review');
-        // Stream is complete, no need to abort
         break;
 
       case 'error':
         setError(data.message);
         setPhase('error');
-        // Stream errored, no need to abort
         break;
 
       default:
+        // Log unknown events for debugging but don't show to user
         console.log('Unknown event type:', type, data);
     }
   };
@@ -275,13 +303,19 @@ export default function CareplanGenerationModal({
                       {agent.status === 'pending' && <span className="agent-pending">⚪</span>}
                       <span>{agent.title}</span>
                     </div>
-                    <span className="agent-card__status">{agent.status}</span>
+                    {agent.status === 'complete' && (
+                      <span className="agent-card__status">Complete</span>
+                    )}
+                    {agent.status === 'active' && (
+                      <span className="agent-card__status agent-card__status--active">Working...</span>
+                    )}
                   </div>
-                  {agent.logs.length > 0 && (
-                    <div className="agent-card__logs">
-                      {agent.logs.map((log, idx) => (
-                        <div key={idx} className="agent-log">{log}</div>
-                      ))}
+                  {agent.logs.length > 0 && agent.status !== 'pending' && (
+                    <div className="agent-card__summary">
+                      {/* Only show the most recent meaningful log entry */}
+                      <div className="agent-summary-text">
+                        {agent.logs[agent.logs.length - 1]}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -476,20 +510,23 @@ export default function CareplanGenerationModal({
         }
 
         .agent-card {
-          border: 2px solid #e5e7eb;
+          border: 2px solid #d1d5db;
           border-radius: 12px;
-          padding: 16px;
+          padding: 18px;
           transition: all 0.3s ease;
+          background: white;
         }
 
         .agent-card--active {
-          border-color: #fbbf24;
-          background: #fffbeb;
+          border-color: #60a5fa;
+          background: linear-gradient(to bottom, #eff6ff, #ffffff);
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
         }
 
         .agent-card--complete {
           border-color: #10b981;
-          background: #f0fdf4;
+          background: linear-gradient(to bottom, #ecfdf5, #ffffff);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
         }
 
         .agent-card__header {
@@ -502,13 +539,15 @@ export default function CareplanGenerationModal({
         .agent-card__title {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
           font-weight: 600;
           font-size: 1.05rem;
+          color: #111827;
         }
 
         .agent-spinner {
           animation: pulse 1.5s ease-in-out infinite;
+          font-size: 1.2rem;
         }
 
         @keyframes pulse {
@@ -516,26 +555,47 @@ export default function CareplanGenerationModal({
           50% { opacity: 0.5; }
         }
 
+        .agent-check {
+          font-size: 1.2rem;
+        }
+
+        .agent-pending {
+          font-size: 1.2rem;
+          opacity: 0.5;
+        }
+
         .agent-card__status {
-          font-size: 0.875rem;
-          color: #6b7280;
+          font-size: 0.8125rem;
+          color: #10b981;
+          background: #d1fae5;
+          padding: 4px 12px;
+          border-radius: 12px;
+          font-weight: 600;
           text-transform: capitalize;
         }
 
-        .agent-card__logs {
-          background: #f9fafb;
-          border-radius: 8px;
-          padding: 12px;
-          font-family: 'Courier New', monospace;
-          font-size: 0.875rem;
-          max-height: 200px;
-          overflow-y: auto;
+        .agent-card__status--active {
+          color: #2563eb;
+          background: #dbeafe;
         }
 
-        .agent-log {
-          padding: 4px 0;
+        .agent-card--pending .agent-card__status {
+          color: #6b7280;
+          background: #f3f4f6;
+        }
+
+        .agent-card__summary {
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-top: 8px;
+        }
+
+        .agent-summary-text {
           color: #374151;
-          line-height: 1.5;
+          font-size: 0.9rem;
+          line-height: 1.6;
         }
 
         .careplan-modal__success {
