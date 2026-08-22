@@ -405,7 +405,7 @@ export default function CareplanGenerationModal({
                   <h5>Tasks Created:</h5>
                   <ul>
                     {carePlan.tasks.map((task: any, idx: number) => (
-                      <li key={idx}>{task.task}</li>
+                      <li key={idx}>{task.task_description || task.task || task.description || 'Task description not available'}</li>
                     ))}
                   </ul>
                 </div>

@@ -15,6 +15,11 @@ export default function CarePlans() {
   const [loading, setLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  
   const {
     notifications,
     unreadCount,
@@ -38,6 +43,75 @@ export default function CarePlans() {
   useEffect(() => {
     loadCarePlan();
   }, []);
+
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+    
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    
+    // Add user message to chat
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setChatLoading(true);
+    
+    try {
+      // Get current user info
+      const userResponse = await fetch('http://localhost:8000/api/v1/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('cp_token')}`
+        }
+      });
+      
+      if (!userResponse.ok) {
+        throw new Error('Failed to get user info');
+      }
+      
+      const userData = await userResponse.json();
+      
+      // Submit to patient response endpoint
+      const response = await fetch(`http://localhost:8000/api/v1/patients/${userData.patient_id}/care-plan-response`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('cp_token')}`
+        },
+        body: JSON.stringify({
+          patient_response: userMessage
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to submit response');
+      }
+      
+      const result = await response.json();
+      
+      // Add assistant response
+      let assistantMessage = '';
+      if (result.classification === 'URGENT') {
+        assistantMessage = `I've detected this is urgent. Your care team has been notified and we're scheduling an appointment for you. Please wait for further instructions.`;
+      } else if (result.classification === 'CONCERN') {
+        assistantMessage = `Thank you for letting me know. I've updated your care plan based on your concerns. Your care team will review this and may reach out to you.`;
+      } else {
+        assistantMessage = `Thank you for the update! I've recorded this in your care plan. Keep up the good work with your recovery.`;
+      }
+      
+      setChatMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+      
+      // Reload care plan to show updates
+      await loadCarePlan();
+      
+    } catch (error) {
+      console.error('Chat error:', error);
+      setChatMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again or contact your care team.' 
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -227,16 +301,142 @@ export default function CarePlans() {
           </section>
         )}
 
-        {/* Help */}
+        {/* Care Plan Chat */}
         <section className="cp-plan-section">
-          <h3 className="cp-plan-section__title">NEED HELP?</h3>
-          <div className="cp-plan-help">
-            <button className="cp-help-btn" onClick={() => navigate('/chat')}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M2 2h12a1 1 0 011 1v8a1 1 0 01-1 1H9l-3 2.5V12H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.4"/>
-              </svg>
-              Chat with CarePath
-            </button>
+          <h3 className="cp-plan-section__title">CHAT WITH YOUR CARE TEAM</h3>
+          <div className="cp-plan-card" style={{ padding: 0, overflow: 'hidden' }}>
+            {/* Chat Messages */}
+            <div style={{ 
+              maxHeight: '400px', 
+              overflowY: 'auto', 
+              padding: '16px',
+              background: '#f9fafb'
+            }}>
+              {chatMessages.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
+                  <p>💬 How are you feeling today?</p>
+                  <p style={{ fontSize: '0.875rem', marginTop: '8px' }}>
+                    Share your progress, concerns, or ask questions about your care plan
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
+                  <div 
+                    key={idx}
+                    style={{
+                      marginBottom: '16px',
+                      display: 'flex',
+                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                      gap: '12px'
+                    }}
+                  >
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: msg.role === 'user' ? '#3b82f6' : '#10b981',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      fontSize: '0.875rem',
+                      fontWeight: 600
+                    }}>
+                      {msg.role === 'user' ? 'You' : 'AI'}
+                    </div>
+                    <div style={{
+                      background: msg.role === 'user' ? '#3b82f6' : 'white',
+                      color: msg.role === 'user' ? 'white' : '#1f2937',
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      maxWidth: '75%',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                    }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: '#10b981',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.875rem',
+                    fontWeight: 600
+                  }}>
+                    AI
+                  </div>
+                  <div style={{
+                    background: 'white',
+                    padding: '12px 16px',
+                    borderRadius: '12px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                  }}>
+                    <span style={{ opacity: 0.6 }}>Analyzing your response...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Chat Input */}
+            <form onSubmit={handleChatSubmit} style={{ 
+              padding: '16px', 
+              borderTop: '1px solid #e5e7eb',
+              background: 'white'
+            }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Type your message..."
+                  disabled={chatLoading}
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+                <button
+                  type="submit"
+                  disabled={!chatInput.trim() || chatLoading}
+                  style={{
+                    padding: '12px 24px',
+                    background: chatInput.trim() && !chatLoading ? '#3b82f6' : '#d1d5db',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'not-allowed',
+                    transition: 'background 0.2s'
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+              <p style={{ 
+                fontSize: '0.75rem', 
+                color: '#6b7280', 
+                marginTop: '8px',
+                fontStyle: 'italic'
+              }}>
+                Your messages are analyzed by AI to update your care plan
+              </p>
+            </form>
           </div>
         </section>
       </div>

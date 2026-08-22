@@ -26,6 +26,11 @@ interface Row {
 
 /** Derive the journey stage from real agent flags. */
 function deriveStage(s: PostDischargeStatus): { stage: Stage; index: number } {
+  // Check if care plan has been generated
+  if (s.care_plan?.status === 'not_generated') {
+    return { stage: 'Discharged', index: 0 };
+  }
+  
   const tasks = s.care_plan?.tasks ?? [];
   const allDone = tasks.length > 0 && tasks.every((t) => t.status === 'completed');
 
@@ -210,78 +215,103 @@ export default function PostDischargePage() {
                         <span className="cmp-person__id">{r.patient.mrn}</span>
                       </span>
                       <span className="cmpd-item__stage">{r.stage}</span>
-                      <span className={`cmd-agent__pill cmd-agent__pill--${r.status.care_plan.status === 'at_risk' ? 'warn' : 'ok'}`}>
-                        {r.status.care_plan.status.replace('_', ' ')}
+                      <span className={`cmd-agent__pill cmd-agent__pill--${
+                        r.status.care_plan.status === 'not_generated' ? 'neutral' :
+                        r.status.care_plan.status === 'at_risk' ? 'warn' : 'ok'
+                      }`}>
+                        {r.status.care_plan.status === 'not_generated' ? 'not generated' : r.status.care_plan.status.replace('_', ' ')}
                       </span>
                       <span className="cmpd-item__chev" aria-hidden="true">{open ? '▲' : '▼'}</span>
                     </button>
 
                     {open && (
                       <div className="cmpd-item__body">
-                        <div className="cmpd-grid">
-                          <div>
-                            <p className="cmpd-grid__label">Follow-up</p>
-                            <p className="cmpd-grid__value">
-                              {r.status.follow_up.is_scheduled ? 'Scheduled' : 'Not scheduled'}
+                        {r.status.care_plan.status === 'not_generated' ? (
+                          <div style={{ padding: '24px', textAlign: 'center', background: '#f8f9fa', borderRadius: '8px' }}>
+                            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 600 }}>No Care Plan Generated Yet</h3>
+                            <p style={{ margin: '0 0 20px 0', color: '#6b7280', fontSize: '14px' }}>
+                              Click "Generate Care Plan" to create an AI-powered care plan for this patient.
                             </p>
-                            {r.status.follow_up.last_checkin && (
-                              <p className="cmpd-grid__sub">Last: {r.status.follow_up.last_checkin}</p>
-                            )}
-                            {r.status.follow_up.next_checkin && (
-                              <p className="cmpd-grid__sub">Next: {r.status.follow_up.next_checkin}</p>
-                            )}
+                            <button 
+                              className="cp-btn cp-btn--primary" 
+                              onClick={() => handleGenerateCarePlan(r.patient)}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '6px' }}>
+                                <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1" fill="none"/>
+                              </svg>
+                              Generate Care Plan
+                            </button>
                           </div>
-                          <div>
-                            <p className="cmpd-grid__label">Appointment</p>
-                            <p className="cmpd-grid__value">
-                              {r.status.appointment.is_appointment ? (r.status.appointment.date ?? 'Booked') : 'None'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="cmpd-grid__label">Care plan tasks</p>
-                            {r.status.care_plan.tasks.length === 0 ? (
-                              <p className="cmpd-grid__value">None returned</p>
-                            ) : (
-                              <ul className="cmd-tasklist">
-                                {r.status.care_plan.tasks.map((t, i) => (
-                                  <li key={i} className={t.status === 'completed' ? 'cmd-tasklist--done' : ''}>
-                                    <span aria-hidden="true">{t.status === 'completed' ? '✓' : '○'}</span> {t.task}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
+                        ) : (
+                          <>
+                            <div className="cmpd-grid">
+                              <div>
+                                <p className="cmpd-grid__label">Follow-up</p>
+                                <p className="cmpd-grid__value">
+                                  {r.status.follow_up.is_scheduled ? 'Scheduled' : 'Not scheduled'}
+                                </p>
+                                {r.status.follow_up.last_checkin && (
+                                  <p className="cmpd-grid__sub">Last: {r.status.follow_up.last_checkin}</p>
+                                )}
+                                {r.status.follow_up.next_checkin && (
+                                  <p className="cmpd-grid__sub">Next: {r.status.follow_up.next_checkin}</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="cmpd-grid__label">Appointment</p>
+                                <p className="cmpd-grid__value">
+                                  {r.status.appointment.is_appointment ? (r.status.appointment.date ?? 'Booked') : 'None'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="cmpd-grid__label">Care plan tasks</p>
+                                {r.status.care_plan.tasks.length === 0 ? (
+                                  <p className="cmpd-grid__value">None returned</p>
+                                ) : (
+                                  <ul className="cmd-tasklist">
+                                    {r.status.care_plan.tasks.map((t, i) => (
+                                      <li key={i} className={t.status === 'completed' ? 'cmd-tasklist--done' : ''}>
+                                        <span aria-hidden="true">{t.status === 'completed' ? '✓' : '○'}</span> {t.task}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
 
-                        {Object.keys(r.status.response_analyser.key_info ?? {}).length > 0 && (
-                          <div className="cmpd-keyinfo">
-                            <p className="cmpd-grid__label">Response analyser</p>
-                            <ul>
-                              {Object.entries(r.status.response_analyser.key_info).map(([k, v]) => (
-                                <li key={k}><strong>{k.replace(/_/g, ' ')}:</strong> {String(v)}</li>
-                              ))}
-                            </ul>
-                          </div>
+                            {Object.keys(r.status.response_analyser.key_info ?? {}).length > 0 && (
+                              <div className="cmpd-keyinfo">
+                                <p className="cmpd-grid__label">Response analyser</p>
+                                <ul>
+                                  {Object.entries(r.status.response_analyser.key_info).map(([k, v]) => (
+                                    <li key={k}><strong>{k.replace(/_/g, ' ')}:</strong> {String(v)}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            <div className="cmpd-item__actions">
+                              <button 
+                                className="cp-btn cp-btn--sm cp-btn--primary" 
+                                onClick={() => handleGenerateCarePlan(r.patient)}
+                              >
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '6px' }}>
+                                  <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1" fill="none"/>
+                                </svg>
+                                Generate Care Plan
+                              </button>
+                              <button 
+                                className="cp-btn cp-btn--sm cp-btn--ghost" 
+                                onClick={() => navigate(`/care-manager/patients/${r.patient.id}`)}
+                              >
+                                Open patient record →
+                              </button>
+                            </div>
+                          </>
                         )}
-
-                        <div className="cmpd-item__actions">
-                          <button 
-                            className="cp-btn cp-btn--sm cp-btn--primary" 
-                            onClick={() => handleGenerateCarePlan(r.patient)}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '6px' }}>
-                              <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                              <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1" fill="none"/>
-                            </svg>
-                            Generate Care Plan
-                          </button>
-                          <button 
-                            className="cp-btn cp-btn--sm cp-btn--ghost" 
-                            onClick={() => navigate(`/care-manager/patients/${r.patient.id}`)}
-                          >
-                            Open patient record →
-                          </button>
-                        </div>
                       </div>
                     )}
                   </div>

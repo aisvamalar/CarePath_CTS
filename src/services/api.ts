@@ -32,6 +32,17 @@ export type {
   CareManagerProfile,
 } from './careManagerService';
 
+// Post-Care Service
+export { careService } from './careService';
+export type {
+  CareTask,
+  FollowUpCheckIn,
+  CarePlan,
+  CareGenerationResponse,
+  PatientResponseResult,
+  AppointmentInfo,
+} from './careService';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Notification Types
 // ─────────────────────────────────────────────────────────────────────────────

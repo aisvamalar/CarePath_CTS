@@ -9,7 +9,7 @@ import Chat from './pages/Chat';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
 import Appointments from './pages/Appointments';
-import CarePlans from './pages/CarePlans';
+import FollowUpTasks from './pages/patient/FollowUpTasks';
 
 // Care Manager pages
 import CareManagerDashboard from './pages/care_manager/Dashboard';
@@ -40,7 +40,7 @@ function AppRoutes() {
         <Route path="/settings" element={state.token ? <Settings /> : <Navigate to="/login" replace />} />
         <Route path="/profile" element={state.token ? <Profile /> : <Navigate to="/login" replace />} />
         <Route path="/appointments" element={state.token ? <Appointments /> : <Navigate to="/login" replace />} />
-        <Route path="/care-plans" element={state.token ? <CarePlans /> : <Navigate to="/login" replace />} />
+        <Route path="/care-plans" element={state.token ? <FollowUpTasks /> : <Navigate to="/login" replace />} />
         <Route path="/route-map" element={state.token ? <RouteMap /> : <Navigate to="/login" replace />} />
 
         {/* Care Manager routes */}
