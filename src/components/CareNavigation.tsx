@@ -23,6 +23,7 @@ import { appointmentStore, type StoredAppointment } from '../services/appointmen
 import { toApiError } from '../services/apiClient';
 import { patientAPI } from '../services/api';
 import type { IntakeFeatures } from '../services/api';
+import RescheduleModal from './RescheduleModal';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -247,6 +248,7 @@ export default function CareNavigation({
   const [stageIndex, setStageIndex] = useState(2);
   const [navActive, setNavActive]   = useState(false);
   const [navStep, setNavStep]       = useState(0);
+  const [showReschedule, setShowReschedule] = useState(false);
 
   const ran = useRef(false);
   const geoWatchId = useRef<number | null>(null);
@@ -570,6 +572,7 @@ export default function CareNavigation({
                 {appt.provider_address ?? (destPos ? `${destPos.lat.toFixed(4)}, ${destPos.lng.toFixed(4)}` : 'Address unavailable')}
               </div>
               <button className="rm-appt-details-btn">Appointment Details →</button>
+              <button className="rm-appt-resched-btn" onClick={() => setShowReschedule(true)}>Reschedule</button>
             </div>
           </div>
 
@@ -698,6 +701,14 @@ export default function CareNavigation({
               Start New Assessment
             </button>
           )}
+
+          <RescheduleModal
+            open={showReschedule}
+            appointment={appt}
+            patientId={patientId}
+            onClose={() => setShowReschedule(false)}
+            onRescheduled={(updated) => setAppt(updated)}
+          />
         </div>
       )}
     </div>

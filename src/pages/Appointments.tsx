@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
+import RescheduleModal from '../components/RescheduleModal';
 import { useApp } from '../context/AppContext';
 import { careService } from '../services/careService';
 import { appointmentStore, type StoredAppointment } from '../services/appointmentStore';
@@ -19,7 +20,30 @@ const DOC_PHOTOS = [
   'https://images.unsplash.com/photo-1638202993928-7267aad84c31?w=56&h=56&fit=crop&crop=face',
   'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=56&h=56&fit=crop&crop=face',
 ];
-function docPhoto(id: string) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff; return DOC_PHOTOS[h % DOC_PHOTOS.length]; }
+const KPI_ICONS = {
+  calendar: (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.6"/><path d="M7 2.5V5.5M13 2.5V5.5M3 8.5H17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+  ),
+  check: (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.6"/><path d="M6.8 10.2l2.1 2.1 4.3-4.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  ),
+  clipboard: (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><rect x="4.5" y="3.5" width="11" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.6"/><path d="M7.5 2.5h5a.5.5 0 01.5.5v1a.5.5 0 01-.5.5h-5A.5.5 0 017 4V3a.5.5 0 01.5-.5z" stroke="currentColor" strokeWidth="1.6"/><path d="M7 9h6M7 12h6M7 15h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+  ),
+  heart: (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M10 17s-6.5-4.03-6.5-8.75C3.5 5.5 5.5 3.5 8 3.5c1 0 2 .5 2 1.5.5-1 1.5-1.5 2-1.5 2.5 0 4.5 2 4.5 4.75C16.5 12.97 10 17 10 17z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>
+  ),
+  pulse: (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none"><path d="M2.5 10.5h3l1.6-4 2.6 7 2.1-5 1.2 2h4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  ),
+} as const;
+
+function docPhoto(id: string, salt = '') {
+  const key = `${id}${salt}`;
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) & 0xffff;
+  return DOC_PHOTOS[h % DOC_PHOTOS.length];
+}
 function initials(name: string) { return name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2); }
 function fmtAppt(a: StoredAppointment) {
   const d = a.slot?.start_time ? new Date(a.slot.start_time) : a.date ? new Date(a.date) : null;
@@ -35,6 +59,7 @@ export default function Appointments() {
   const [appts, setAppts] = useState<StoredAppointment[]>([]);
   const [calMonth, setCalMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1); });
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
+  const [rescheduleTarget, setRescheduleTarget] = useState<StoredAppointment | null>(null);
 
   const refresh = useCallback(async () => {
     const all = appointmentStore.list(patientId ?? undefined);
@@ -91,11 +116,11 @@ export default function Appointments() {
 
         {/* KPIs */}
         <div className="pa-kpis">
-          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--coral">📅</span><div><span className="pa-kpi__label">UPCOMING APPOINTMENTS</span><span className="pa-kpi__val">{upcoming.length}</span><span className="pa-kpi__hint">Next 7 days</span></div></div>
-          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--green">✅</span><div><span className="pa-kpi__label">COMPLETED</span><span className="pa-kpi__val" style={{color:'#10b981'}}>{completed.length}</span><span className="pa-kpi__hint">This month</span></div></div>
-          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--amber">📋</span><div><span className="pa-kpi__label">PENDING TASKS</span><span className="pa-kpi__val" style={{color:'#e06a4f'}}>{carePlan.length}</span><span className="pa-kpi__hint">In your care plan</span></div></div>
-          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--coral">❤️</span><div><span className="pa-kpi__label">HEALTH SCORE</span><span className="pa-kpi__val">78</span><span className="pa-kpi__hint">Good progress</span></div></div>
-          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--purple">💊</span><div><span className="pa-kpi__label">CARE ADHERENCE</span><span className="pa-kpi__val" style={{color:'#8b5cf6'}}>82%</span><span className="pa-kpi__hint">On track</span></div></div>
+          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--coral">{KPI_ICONS.calendar}</span><div><span className="pa-kpi__label">UPCOMING APPOINTMENTS</span><span className="pa-kpi__val">{upcoming.length}</span><span className="pa-kpi__hint">Next 7 days</span></div></div>
+          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--green">{KPI_ICONS.check}</span><div><span className="pa-kpi__label">COMPLETED</span><span className="pa-kpi__val" style={{color:'#10b981'}}>{completed.length}</span><span className="pa-kpi__hint">This month</span></div></div>
+          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--amber">{KPI_ICONS.clipboard}</span><div><span className="pa-kpi__label">PENDING TASKS</span><span className="pa-kpi__val" style={{color:'#e06a4f'}}>{carePlan.length}</span><span className="pa-kpi__hint">In your care plan</span></div></div>
+          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--coral">{KPI_ICONS.heart}</span><div><span className="pa-kpi__label">HEALTH SCORE</span><span className="pa-kpi__val">78</span><span className="pa-kpi__hint">Good progress</span></div></div>
+          <div className="pa-kpi"><span className="pa-kpi__ic pa-kpi__ic--purple">{KPI_ICONS.pulse}</span><div><span className="pa-kpi__label">CARE ADHERENCE</span><span className="pa-kpi__val" style={{color:'#8b5cf6'}}>82%</span><span className="pa-kpi__hint">On track</span></div></div>
         </div>
 
         {/* Body: appointments + calendar */}
@@ -109,9 +134,10 @@ export default function Appointments() {
                 return (
                   <div key={a.appointment_id} className="pa-appt">
                     <div className="pa-appt__date"><span>{d.month}</span><b>{d.day}</b><small>{d.time}</small></div>
-                    <img src={docPhoto(a.provider_id)} className="pa-appt__photo" alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                    <img src={docPhoto(a.provider_id, a.appointment_id)} className="pa-appt__photo" alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                     <div className="pa-appt__info"><strong>{a.provider_name ?? 'Central Texas Family Medicine'}</strong><span>{a.specialty ?? a.care_type ?? 'PCP'}</span>{a.hospital_name && <span className="pa-appt__loc">{a.hospital_name}</span>}</div>
                     <span className="pa-appt__status">{a.status === 'BOOKED' ? 'Confirmed' : 'Pending'}</span>
+                    <button className="pa-appt__resched" onClick={(e) => { e.stopPropagation(); setRescheduleTarget(a); }}>Reschedule</button>
                     <span className="pa-appt__arrow">›</span>
                   </div>
                 );
@@ -163,6 +189,7 @@ export default function Appointments() {
                   </div>
                 </div>
                 <button className="pa-next__btn">View Details</button>
+                <button className="pa-next__resched" onClick={() => setRescheduleTarget(nextAppt)}>Reschedule</button>
               </div>
             )}
           </aside>
@@ -193,6 +220,14 @@ export default function Appointments() {
           </section>
         </div>
       </main>
+
+      <RescheduleModal
+        open={rescheduleTarget !== null}
+        appointment={rescheduleTarget}
+        patientId={patientId}
+        onClose={() => setRescheduleTarget(null)}
+        onRescheduled={() => void refresh()}
+      />
     </div>
   );
 }

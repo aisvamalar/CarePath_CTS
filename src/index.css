@@ -205,8 +205,9 @@ input, textarea { font-family:var(--font-sans); }
 .sb-menu-btn { display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border-radius:10px; background:transparent; border:none; cursor:pointer; font-family:inherit; font-size:0.875rem; font-weight:600; color:var(--cp-charcoal); text-align:left; transition:background 0.15s; }
 .sb-menu-btn:hover { background:rgba(242,132,107,0.06); }
 .sb-menu-btn svg { flex-shrink:0; color:var(--cp-gray); }
+.sb-menu-btn__label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sb-divider { height:1px; background:var(--cp-border); margin:10px 4px; }
-.sb-badge { margin-left:auto; font-size:0.6875rem; font-weight:700; padding:3px 8px; border-radius:6px; }
+.sb-badge { flex-shrink:0; font-size:0.6875rem; font-weight:700; padding:3px 8px; border-radius:6px; white-space:nowrap; line-height:1.4; }
 .sb-badge--warn { background:rgba(245,166,35,0.15); color:#b87a00; }
 .sb-badge--success { background:rgba(76,175,80,0.12); color:#2e7d32; }
 .sb-section-label { font-size:0.625rem; font-weight:700; color:var(--cp-gray-light); text-transform:uppercase; letter-spacing:0.08em; padding:0 12px; margin-bottom:6px; }
@@ -726,8 +727,8 @@ input, textarea { font-family:var(--font-sans); }
 .sb-divider { height:1px; background:var(--cp-border); margin:10px 4px; }
 
 .sb-badge {
-  margin-left:auto; font-size:0.6875rem; font-weight:700;
-  padding:3px 8px; border-radius:6px; letter-spacing:0.02em;
+  flex-shrink:0; font-size:0.6875rem; font-weight:700;
+  padding:3px 8px; border-radius:6px; letter-spacing:0.02em; white-space:nowrap;
 }
 .sb-badge--warn { background:rgba(245,166,35,0.15); color:#b87a00; }
 .sb-badge--success { background:rgba(76,175,80,0.12); color:#2e7d32; }
@@ -1098,8 +1099,8 @@ input, textarea { font-family:var(--font-sans); }
 .chat-right-panel {
   display:none; width:260px; flex-shrink:0; height:100vh;
   padding:14px 12px;
-  background:linear-gradient(180deg, var(--cp-warm-white) 0%, var(--cp-cream) 100%);
-  border-left:1px solid var(--cp-border);
+  background:#fdf2ec;
+  border-left:1px solid rgba(242,132,107,0.14);
   flex-direction:column; gap:10px; justify-content:center;
 }
 @media (min-width:1100px) { .chat-right-panel { display:flex; } }
@@ -1984,6 +1985,8 @@ input, textarea { font-family:var(--font-sans); }
 .rm-doc-address { font-size:0.8125rem; color:#555; line-height:1.5; }
 .rm-appt-details-btn { background:none; border:none; cursor:pointer; font-size:0.8125rem; color:#E85D3C; font-weight:700; font-family:var(--font-sans); text-align:left; padding:0; }
 .rm-appt-details-btn:hover { text-decoration:underline; }
+.rm-appt-resched-btn { margin-top:4px; padding:7px 12px; border-radius:8px; border:1.5px solid var(--cp-border); background:#fff; font-size:0.75rem; font-weight:700; color:#555; cursor:pointer; font-family:var(--font-sans); text-align:center; }
+.rm-appt-resched-btn:hover { border-color:#E85D3C; color:#E85D3C; }
 
 /* Journey stepper */
 .rm-journey { padding:18px 24px; background:#fff; border:1px solid #e8e8e8; border-radius:16px; }
@@ -2218,11 +2221,11 @@ input, textarea { font-family:var(--font-sans); }
 /* KPIs */
 .pa-kpis { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
 .pa-kpi { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #f0f0f0; border-radius:12px; flex:1; min-width:140px; }
-.pa-kpi__ic { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.875rem; flex-shrink:0; }
-.pa-kpi__ic--coral { background:rgba(224,106,79,0.1); }
-.pa-kpi__ic--green { background:rgba(16,185,129,0.1); }
-.pa-kpi__ic--amber { background:rgba(245,158,11,0.1); }
-.pa-kpi__ic--purple { background:rgba(139,92,246,0.1); }
+.pa-kpi__ic { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pa-kpi__ic--coral { background:rgba(224,106,79,0.1); color:#e06a4f; }
+.pa-kpi__ic--green { background:rgba(16,185,129,0.1); color:#10b981; }
+.pa-kpi__ic--amber { background:rgba(245,158,11,0.1); color:#e08a1f; }
+.pa-kpi__ic--purple { background:rgba(139,92,246,0.1); color:#8b5cf6; }
 .pa-kpi__label { font-size:0.5625rem; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; display:block; }
 .pa-kpi__val { font-size:1.5rem; font-weight:800; color:#1a1a1a; line-height:1.1; display:block; }
 .pa-kpi__hint { font-size:0.625rem; color:#9ca3af; display:block; }
@@ -2242,10 +2245,10 @@ input, textarea { font-family:var(--font-sans); }
 .pa-appts { display:flex; flex-direction:column; gap:0; }
 .pa-appt { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f8f8f8; }
 .pa-appt:last-child { border-bottom:none; }
-.pa-appt__date { width:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 4px; border-radius:8px; background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; flex-shrink:0; line-height:1.1; }
-.pa-appt__date span { font-size:0.5rem; font-weight:700; letter-spacing:0.04em; }
+.pa-appt__date { width:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 4px; border-radius:8px; background:#f3f4f6; border:1px solid #e5e7eb; color:#1a1a1a; flex-shrink:0; line-height:1.1; }
+.pa-appt__date span { font-size:0.5rem; font-weight:700; letter-spacing:0.04em; color:#9ca3af; }
 .pa-appt__date b { font-size:1.125rem; font-weight:800; }
-.pa-appt__date small { font-size:0.5rem; opacity:0.8; }
+.pa-appt__date small { font-size:0.5rem; opacity:0.7; }
 .pa-appt__date--big { width:56px; padding:8px 6px; border-radius:10px; }
 .pa-appt__date--big b { font-size:1.375rem; }
 .pa-appt__photo { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; }
@@ -2282,6 +2285,28 @@ input, textarea { font-family:var(--font-sans); }
 .pa-dot--green { background:#10b981; }
 .pa-dot--amber { background:#f59e0b; }
 .pa-dot--coral { background:#e06a4f; }
+
+/* Reschedule button on appointment rows */
+.pa-appt__resched { font-size:0.6875rem; font-weight:700; color:#e06a4f; background:rgba(224,106,79,0.08); border:1px solid rgba(224,106,79,0.25); border-radius:7px; padding:5px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0; font-family:inherit; }
+.pa-appt__resched:hover { background:#e06a4f; color:#fff; }
+.pa-next__resched { width:100%; margin-top:8px; padding:9px; border-radius:8px; border:1.5px solid var(--cp-border); background:transparent; color:#555; font-size:0.8125rem; font-weight:700; cursor:pointer; font-family:inherit; }
+.pa-next__resched:hover { border-color:#e06a4f; color:#e06a4f; }
+
+/* Reschedule modal — time picker */
+.rsm-day-group { margin-bottom:16px; }
+.rsm-day-group:last-child { margin-bottom:0; }
+.rsm-day-label { font-size:0.75rem; font-weight:700; color:var(--cp-charcoal); margin-bottom:8px; }
+.rsm-time-grid { display:flex; flex-wrap:wrap; gap:8px; }
+.rsm-time-chip { padding:7px 12px; border-radius:8px; border:1.5px solid var(--cp-border); background:#fff; font-size:0.8125rem; color:#374151; cursor:pointer; font-family:inherit; transition:all .15s; text-align:center; }
+.rsm-time-chip:hover { border-color:#e06a4f; color:#e06a4f; }
+.rsm-time-chip--active { background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; border-color:transparent; }
+.rsm-time-chip small { font-size:0.625rem; opacity:0.75; font-weight:400; }
+
+/* Reschedule modal — preferred date/time fallback */
+.rsm-pref-form { display:flex; flex-direction:column; gap:4px; }
+.rsm-field-label { font-size:0.75rem; font-weight:700; color:var(--cp-charcoal); margin:12px 0 8px; }
+.rsm-date-input { width:100%; padding:10px 12px; border-radius:8px; border:1.5px solid var(--cp-border); font-size:0.875rem; font-family:inherit; color:var(--cp-charcoal); }
+.rsm-date-input:focus { outline:none; border-color:#e06a4f; }
 
 /* Next Appointment */
 .pa-next { background:#fff; border:1px solid #f0f0f0; border-radius:14px; padding:14px 16px; }

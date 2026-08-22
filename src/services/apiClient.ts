@@ -62,6 +62,12 @@ export function toApiError(err: unknown): { status?: number; message: string } {
     const status = e.response?.status;
     const detail = e.response?.data?.detail;
 
+    // Upstream microservice failures (e.g. Appointment Agent unreachable) come
+    // back as raw exception text — never show that verbatim to the patient.
+    if (status === 502 || status === 503 || status === 504) {
+      return { status, message: 'The scheduling service is temporarily unavailable. Please try again in a moment.' };
+    }
+
     if (typeof detail === 'string') return { status, message: detail };
     // FastAPI 422 returns an array of validation issues
     if (Array.isArray(detail)) {

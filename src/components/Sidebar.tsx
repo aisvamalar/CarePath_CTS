@@ -287,7 +287,7 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
           <rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
           <path d="M5 1.5V4M11 1.5V4M2 7h12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
         </svg>
-        Appointments
+        <span className="sb-menu-btn__label">Appointments</span>
         {apptCount > 0 && (
           <span className="sb-badge sb-badge--warn">{apptCount} Upcoming</span>
         )}
@@ -299,7 +299,7 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
           <rect x="2" y="1.5" width="12" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
           <path d="M5 5.5h6M5 8h6M5 10.5h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
         </svg>
-        Care Plans
+        <span className="sb-menu-btn__label">Care Plans</span>
         <span className="sb-badge sb-badge--success">2 Tasks</span>
       </button>
 

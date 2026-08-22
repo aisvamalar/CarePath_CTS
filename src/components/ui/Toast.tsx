@@ -21,11 +21,32 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const ICONS: Record<ToastKind, string> = {
-  success: '✓',
-  error: '!',
-  info: 'i',
-};
+function ToastIcon({ kind }: { kind: ToastKind }) {
+  if (kind === 'success') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="9" fill="#16a34a" />
+        <path d="M6 10.2l2.4 2.4L14 7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (kind === 'error') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="9" fill="#dc2626" />
+        <path d="M10 6v5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="10" cy="13.6" r="0.9" fill="#fff" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" fill="#2563eb" />
+      <path d="M10 9v5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="10" cy="6.4" r="0.9" fill="#fff" />
+    </svg>
+  );
+}
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
@@ -59,11 +80,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {items.map((t) => (
           <div key={t.id} className={`cp-toast cp-toast--${t.kind}`} role="status" aria-live="polite">
             <span className={`cp-toast__icon cp-toast__icon--${t.kind}`} aria-hidden="true">
-              {ICONS[t.kind]}
+              <ToastIcon kind={t.kind} />
             </span>
             <span className="cp-toast__msg">{t.message}</span>
             <button className="cp-toast__close" onClick={() => dismiss(t.id)} aria-label="Dismiss notification">
-              ✕
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
             </button>
           </div>
         ))}
