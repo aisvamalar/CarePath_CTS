@@ -28,11 +28,6 @@ export default function Onboarding() {
 
         {/* Hero */}
         <div className="ob-web__hero">
-          <div className="ob-web__badge">
-            <span className="ob-web__badge-dot" />
-            Trusted by 10,000+ patients
-          </div>
-
           <h1 className="ob-web__headline">
             Elevate Your Health<br/>with <em>Smart AI Care</em>
           </h1>
