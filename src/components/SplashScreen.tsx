@@ -31,7 +31,7 @@ export default function SplashScreen() {
           <div className="spl-logo-ring" />
         </div>
 
-        <Logo size={36} textSize="2rem" />
+        <Logo size={72} textSize="2.5rem" />
         <p className="spl-tagline">Your health. Your <em>path</em>.</p>
 
         <div className="spl-dots" role="status" aria-label="Loading">

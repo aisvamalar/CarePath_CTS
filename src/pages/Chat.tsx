@@ -9,7 +9,8 @@ import VerdictCard from '../components/VerdictCard';
 import CareNavigation from '../components/CareNavigation';
 import { useApp } from '../context/AppContext';
 import { intakeAPI, safetyAPI, chatAPI } from '../services/api';
-import type { RedFlagsPayload } from '../services/api';
+import type { RedFlagsPayload, IntakeFeatures, SafetyEvaluationResponse } from '../services/api';
+import { appointmentStore, type StoredAppointment } from '../services/appointmentStore';
 
 let robotImg: string;
 try { robotImg = new URL('../assets/robot.png', import.meta.url).href; }
@@ -447,66 +448,13 @@ export default function Chat() {
 
       {/* ── Right Panel (desktop only) ── */}
       <aside className="chat-right-panel">
-        {/* Emergency notification */}
-        <div className="crp-emergency">
-          <span className="crp-emergency__icon">🔔</span>
-          <div className="crp-emergency__text">
-            <strong>Attention Required</strong>
-            <span>Complete your symptom assessment</span>
-          </div>
-        </div>
-
-        {/* Mini Calendar */}
-        <section className="crp-section crp-section--compact">
-          <RealCalendar appointmentDays={[22, 28]} />
-        </section>
-
-        {/* Care Journey — attractive */}
-        <section className="crp-section crp-section--compact crp-section--journey">
-          <h3 className="crp-section__title">Care Journey</h3>
-          <div className="crp-journey-track">
-            <div className="crp-journey-track__line">
-              <div className="crp-journey-track__fill" style={{ width: '35%' }} />
-            </div>
-            <div className="crp-jnode crp-jnode--done" title="Assessment"><span>✓</span></div>
-            <div className="crp-jnode crp-jnode--active" title="Review"><span className="crp-jnode__pulse" /></div>
-            <div className="crp-jnode" title="Appointment" />
-            <div className="crp-jnode" title="Follow-up" />
-          </div>
-          <div className="crp-journey-labels">
-            <span className="crp-jlabel crp-jlabel--done">Assessment</span>
-            <span className="crp-jlabel crp-jlabel--active">Review</span>
-            <span className="crp-jlabel">Appt</span>
-            <span className="crp-jlabel">Follow-up</span>
-          </div>
-        </section>
-
-        {/* Next Appointment */}
-        <section className="crp-section crp-section--compact">
-          <div className="crp-section__header">
-            <h3 className="crp-section__title">Appointment</h3>
-            <button className="crp-view-all" onClick={() => navigate('/appointments')}>View →</button>
-          </div>
-          <div className="crp-appointment">
-            <div className="crp-appointment__date">
-              <span className="crp-appointment__month">AUG</span>
-              <span className="crp-appointment__day">22</span>
-            </div>
-            <div className="crp-appointment__info">
-              <strong>Dr. Sarah Wilson</strong>
-              <span>Cardiology · 10:30 AM</span>
-            </div>
-          </div>
-        </section>
-
-        {/* Today's Plan */}
-        <section className="crp-section crp-section--compact">
-          <h3 className="crp-section__title">Today</h3>
-          <div className="crp-plan-items">
-            <div className="crp-plan-item crp-plan-item--done"><span className="crp-plan-dot crp-plan-dot--done" />Morning Meds<span className="crp-plan-meta">✓</span></div>
-            <div className="crp-plan-item"><span className="crp-plan-dot" />Evening Meds<span className="crp-plan-meta">8 PM</span></div>
-          </div>
-        </section>
+        <RightPanel
+          phase={activeConversation?.phase ?? state.phase}
+          intakeFeatures={activeConversation?.intakeFeatures ?? null}
+          safetyResult={activeConversation?.safetyResult ?? null}
+          patientId={state.patient?.patient_id ?? null}
+          onNavigate={navigate}
+        />
       </aside>
     </div>
   );
@@ -596,6 +544,215 @@ function RealCalendar({ appointmentDays = [] }: { appointmentDays?: number[] }) 
           })}
         </div>
       </div>
+    </>
+  );
+}
+
+// ── Right Panel — driven by real conversation state ──────────────────────────
+
+type PanelPhase = 'splash' | 'onboarding' | 'auth' | 'chat' | 'intake' | 'safety' | 'verdict';
+
+interface RightPanelProps {
+  phase: PanelPhase;
+  intakeFeatures: IntakeFeatures | null;
+  safetyResult: SafetyEvaluationResponse | null;
+  patientId: string | null;
+  onNavigate: (path: string) => void;
+}
+
+// Map conversation phase + safety result to journey step index (0–3)
+function journeyStep(phase: PanelPhase, safetyResult: SafetyEvaluationResponse | null): number {
+  if (phase === 'intake') return 0;
+  if (phase === 'safety') return 1;
+  if (phase === 'verdict') {
+    const hasAppt = appointmentStore.list().some(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED');
+    return hasAppt ? 3 : 2;
+  }
+  return 0;
+}
+
+function RightPanel({ phase, intakeFeatures, safetyResult, patientId, onNavigate }: RightPanelProps) {
+  const [appts, setAppts] = React.useState<StoredAppointment[]>(() =>
+    appointmentStore.list(patientId ?? undefined)
+  );
+
+  // Subscribe to appointment store changes
+  React.useEffect(() => {
+    const refresh = () => setAppts(appointmentStore.list(patientId ?? undefined));
+    refresh();
+    return appointmentStore.subscribe(refresh);
+  }, [patientId]);
+
+  const step = journeyStep(phase, safetyResult);
+  const progressPct = [0, 33, 66, 100][step] ?? 0;
+
+  // Real appointment days for calendar highlight
+  const apptDays = appts
+    .filter(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED')
+    .map(a => {
+      const d = a.slot?.start_time ? new Date(a.slot.start_time)
+        : a.date ? new Date(a.date) : null;
+      return d ? d.getDate() : null;
+    })
+    .filter((d): d is number => d !== null);
+
+  // Upcoming booked appointment
+  const nextAppt = appts.find(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED') ?? null;
+
+  // Banner: attention if in early phases, success if appointment booked, assessment info otherwise
+  const isEmergency = safetyResult?.result === 'YES';
+  const isAvoidable = safetyResult?.pathway?.decision === 'POTENTIALLY_AVOIDABLE';
+  const complaint = intakeFeatures?.chief_complaint;
+
+  const bannerIcon  = isEmergency ? '🚨' : nextAppt ? '✅' : complaint ? '🩺' : '🔔';
+  const bannerTitle = isEmergency ? 'Emergency Detected'
+    : nextAppt ? 'Appointment Booked'
+    : complaint ? `Assessing: ${complaint}`
+    : phase === 'intake' || phase === 'chat' || phase === 'splash' || phase === 'onboarding' || phase === 'auth'
+      ? 'Attention Required'
+      : 'Assessment in Progress';
+  const bannerSub = isEmergency ? 'Please go to the nearest ER now.'
+    : nextAppt ? `${nextAppt.provider_name ?? 'Your provider'} confirmed.`
+    : complaint ? `Pain scale: ${intakeFeatures?.pain_scale ?? '—'}/10`
+    : 'Complete your symptom assessment';
+  const bannerClass = isEmergency
+    ? 'crp-emergency crp-emergency--alert'
+    : nextAppt ? 'crp-emergency crp-emergency--success'
+    : 'crp-emergency';
+
+  // Journey node labels and states
+  const JOURNEY = ['Assessment', 'Review', 'Appt', 'Follow-up'];
+
+  return (
+    <>
+      {/* ── Status banner ── */}
+      <div className={bannerClass}>
+        <span className="crp-emergency__icon">{bannerIcon}</span>
+        <div className="crp-emergency__text">
+          <strong>{bannerTitle}</strong>
+          <span>{bannerSub}</span>
+        </div>
+      </div>
+
+      {/* ── Real calendar — appointment days highlighted ── */}
+      <section className="crp-section crp-section--compact">
+        <RealCalendar appointmentDays={apptDays} />
+      </section>
+
+      {/* ── Care Journey — driven by conversation phase ── */}
+      <section className="crp-section crp-section--compact crp-section--journey">
+        <h3 className="crp-section__title">Care Journey</h3>
+        <div className="crp-journey-track">
+          <div className="crp-journey-track__line">
+            <div className="crp-journey-track__fill" style={{ width: `${progressPct}%` }} />
+          </div>
+          {JOURNEY.map((label, i) => (
+            <div
+              key={label}
+              className={`crp-jnode${i < step ? ' crp-jnode--done' : i === step ? ' crp-jnode--active' : ''}`}
+              title={label}
+            >
+              {i < step
+                ? <span>✓</span>
+                : i === step
+                  ? <span className="crp-jnode__pulse" />
+                  : null}
+            </div>
+          ))}
+        </div>
+        <div className="crp-journey-labels">
+          {JOURNEY.map((label, i) => (
+            <span
+              key={label}
+              className={`crp-jlabel${i < step ? ' crp-jlabel--done' : i === step ? ' crp-jlabel--active' : ''}`}
+            >{label}</span>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Appointment — real data from store ── */}
+      <section className="crp-section crp-section--compact">
+        <div className="crp-section__header">
+          <h3 className="crp-section__title">Appointment</h3>
+          <button className="crp-view-all" onClick={() => onNavigate('/appointments')}>View →</button>
+        </div>
+        {nextAppt ? (
+          <div className="crp-appointment">
+            <div className="crp-appointment__date">
+              <span className="crp-appointment__month">
+                {nextAppt.slot?.start_time
+                  ? new Date(nextAppt.slot.start_time).toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+                  : nextAppt.date ? new Date(nextAppt.date).toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+                  : 'TBD'}
+              </span>
+              <span className="crp-appointment__day">
+                {nextAppt.slot?.start_time
+                  ? new Date(nextAppt.slot.start_time).getDate()
+                  : nextAppt.date ? new Date(nextAppt.date).getDate()
+                  : '—'}
+              </span>
+            </div>
+            <div className="crp-appointment__info">
+              <strong>{nextAppt.provider_name ?? 'Your Provider'}</strong>
+              <span>
+                {[nextAppt.specialty ?? nextAppt.care_type,
+                  nextAppt.slot?.start_time
+                    ? new Date(nextAppt.slot.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                    : nextAppt.time]
+                  .filter(Boolean).join(' · ')}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="crp-no-appt">
+            {isAvoidable
+              ? 'Complete booking to schedule your appointment.'
+              : 'No upcoming appointments.'}
+          </p>
+        )}
+      </section>
+
+      {/* ── Today / symptom summary ── */}
+      <section className="crp-section crp-section--compact">
+        <h3 className="crp-section__title">Today</h3>
+        {complaint ? (
+          <div className="crp-plan-items">
+            <div className="crp-plan-item crp-plan-item--active">
+              <span className="crp-plan-dot crp-plan-dot--active" />
+              <span>{complaint}</span>
+              <span className="crp-plan-meta">
+                {intakeFeatures?.pain_scale != null ? `${intakeFeatures.pain_scale}/10` : ''}
+              </span>
+            </div>
+            {intakeFeatures?.symptom_onset && (
+              <div className="crp-plan-item">
+                <span className="crp-plan-dot" />
+                <span>Onset: {intakeFeatures.symptom_onset}</span>
+              </div>
+            )}
+            {intakeFeatures?.location && (
+              <div className="crp-plan-item">
+                <span className="crp-plan-dot" />
+                <span>Location: {intakeFeatures.location}</span>
+              </div>
+            )}
+            {safetyResult?.result === 'NO' && (
+              <div className="crp-plan-item crp-plan-item--done">
+                <span className="crp-plan-dot crp-plan-dot--done" />
+                <span>Safety screening</span>
+                <span className="crp-plan-meta">✓</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="crp-plan-items">
+            <div className="crp-plan-item">
+              <span className="crp-plan-dot" />
+              <span>Start a symptom assessment</span>
+            </div>
+          </div>
+        )}
+      </section>
     </>
   );
 }

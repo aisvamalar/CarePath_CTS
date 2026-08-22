@@ -2188,3 +2188,137 @@ input, textarea { font-family:var(--font-sans); }
   white-space: nowrap;
 }
 .rm-map-tooltip::before { border-top-color: #e06a4f !important; }
+
+
+/* ── Right panel enhancements ── */
+.crp-emergency--alert { background:rgba(220,38,38,0.06); border-color:rgba(220,38,38,0.2); }
+.crp-emergency--success { background:rgba(16,185,129,0.06); border-color:rgba(16,185,129,0.2); }
+.crp-no-appt { font-size:0.75rem; color:#9ca3af; margin:4px 0 0; line-height:1.5; }
+.crp-plan-dot--active { background:var(--cp-coral) !important; }
+.crp-plan-item--active { opacity:1; }
+
+
+/* ============================================================
+   PATIENT APPOINTMENTS PAGE (pa-*)
+   Sidebar + content layout matching reference screenshot exactly
+   ============================================================ */
+.pa-layout { display:flex; height:100vh; overflow:hidden; background:#fff; }
+.pa-main { flex:1; overflow-y:auto; padding:20px 28px 48px; min-width:0; }
+
+/* Header */
+.pa-hd { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+.pa-hd__menu { display:none; width:32px; height:32px; border:none; background:none; font-size:1.25rem; cursor:pointer; }
+@media(max-width:767px) { .pa-hd__menu { display:flex; align-items:center; justify-content:center; } }
+.pa-hd__avatar { width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; font-size:0.875rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pa-hd__text { flex:1; }
+.pa-hd__text h1 { font-size:1.25rem; font-weight:800; color:#1a1a1a; margin:0; }
+.pa-hd__text p { font-size:0.8125rem; color:#6b7280; margin:2px 0 0; }
+.pa-hd__chat { padding:8px 18px; border-radius:10px; background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; font-size:0.8125rem; font-weight:700; border:none; cursor:pointer; white-space:nowrap; }
+
+/* KPIs */
+.pa-kpis { display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.pa-kpi { display:flex; align-items:center; gap:10px; padding:12px 14px; background:#fafafa; border:1px solid #f0f0f0; border-radius:12px; flex:1; min-width:140px; }
+.pa-kpi__ic { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.875rem; flex-shrink:0; }
+.pa-kpi__ic--coral { background:rgba(224,106,79,0.1); }
+.pa-kpi__ic--green { background:rgba(16,185,129,0.1); }
+.pa-kpi__ic--amber { background:rgba(245,158,11,0.1); }
+.pa-kpi__ic--purple { background:rgba(139,92,246,0.1); }
+.pa-kpi__label { font-size:0.5625rem; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; display:block; }
+.pa-kpi__val { font-size:1.5rem; font-weight:800; color:#1a1a1a; line-height:1.1; display:block; }
+.pa-kpi__hint { font-size:0.625rem; color:#9ca3af; display:block; }
+
+/* Body grid */
+.pa-body { display:grid; grid-template-columns:1fr 300px; gap:20px; margin-bottom:20px; align-items:start; }
+@media(max-width:900px) { .pa-body { grid-template-columns:1fr; } }
+
+/* Section card */
+.pa-section { background:#fff; border:1px solid #f0f0f0; border-radius:14px; padding:16px 18px; }
+.pa-section--sm { padding:14px 16px; }
+.pa-section__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.pa-section__hd h2 { font-size:0.9375rem; font-weight:800; color:#1a1a1a; margin:0; }
+.pa-link { font-size:0.75rem; font-weight:600; color:#e06a4f; background:none; border:none; cursor:pointer; font-family:inherit; }
+
+/* Appointments */
+.pa-appts { display:flex; flex-direction:column; gap:0; }
+.pa-appt { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid #f8f8f8; }
+.pa-appt:last-child { border-bottom:none; }
+.pa-appt__date { width:44px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:6px 4px; border-radius:8px; background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; flex-shrink:0; line-height:1.1; }
+.pa-appt__date span { font-size:0.5rem; font-weight:700; letter-spacing:0.04em; }
+.pa-appt__date b { font-size:1.125rem; font-weight:800; }
+.pa-appt__date small { font-size:0.5rem; opacity:0.8; }
+.pa-appt__date--big { width:56px; padding:8px 6px; border-radius:10px; }
+.pa-appt__date--big b { font-size:1.375rem; }
+.pa-appt__photo { width:40px; height:40px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+.pa-appt__info { flex:1; min-width:0; }
+.pa-appt__info strong { font-size:0.8125rem; font-weight:700; color:#1a1a1a; display:block; }
+.pa-appt__info span { font-size:0.6875rem; color:#9ca3af; }
+.pa-appt__loc { font-size:0.625rem; color:#bbb; display:block; }
+.pa-appt__status { font-size:0.6875rem; font-weight:600; color:#10b981; flex-shrink:0; }
+.pa-appt__arrow { color:#d0d0d0; font-size:1.25rem; flex-shrink:0; cursor:pointer; }
+.pa-empty { font-size:0.8125rem; color:#9ca3af; padding:12px 0; }
+
+/* Book CTA */
+.pa-book { display:flex; align-items:center; gap:12px; margin-top:14px; padding:12px 14px; background:#fff8f6; border:1.5px dashed rgba(224,106,79,0.25); border-radius:12px; flex-wrap:wrap; }
+.pa-book div { flex:1; font-size:0.75rem; color:#555; line-height:1.5; }
+.pa-book div b { font-size:0.8125rem; color:#1a1a1a; }
+.pa-book button { padding:9px 16px; border-radius:8px; background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; font-size:0.75rem; font-weight:700; border:none; cursor:pointer; white-space:nowrap; }
+
+/* Calendar */
+.pa-aside { display:flex; flex-direction:column; gap:14px; }
+.pa-cal { background:#fff; border:1px solid #f0f0f0; border-radius:14px; padding:14px 16px; }
+.pa-cal__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pa-cal__hd span { font-size:0.875rem; font-weight:800; color:#1a1a1a; }
+.pa-cal__hd button { width:24px; height:24px; border-radius:6px; border:1px solid #e8e8e8; background:#fff; cursor:pointer; font-size:0.875rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+.pa-cal__week { display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px; }
+.pa-cal__week span { font-size:0.5rem; font-weight:700; color:#9ca3af; text-align:center; text-transform:uppercase; letter-spacing:0.04em; }
+.pa-cal__grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.pa-cal__day { display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; aspect-ratio:1; border-radius:6px; font-size:0.6875rem; font-weight:500; color:#374151; position:relative; }
+.pa-cal__day--today { background:linear-gradient(135deg,#e06a4f,#c85a3f); color:#fff; font-weight:800; border-radius:50%; }
+.pa-cal__day--dot { }
+.pa-cal__day i { position:absolute; bottom:1px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:#10b981; }
+.pa-cal__legend { display:flex; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.pa-cal__legend span { display:flex; align-items:center; gap:4px; font-size:0.5625rem; color:#6b7280; }
+.pa-dot--green,.pa-dot--amber,.pa-dot--coral { display:inline-block; width:6px; height:6px; border-radius:50%; }
+.pa-dot--green { background:#10b981; }
+.pa-dot--amber { background:#f59e0b; }
+.pa-dot--coral { background:#e06a4f; }
+
+/* Next Appointment */
+.pa-next { background:#fff; border:1px solid #f0f0f0; border-radius:14px; padding:14px 16px; }
+.pa-next__hd { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pa-next__hd b { font-size:0.8125rem; font-weight:700; color:#1a1a1a; }
+.pa-next__hd span { font-size:0.5625rem; color:#9ca3af; font-family:monospace; }
+.pa-next__body { display:flex; gap:14px; align-items:flex-start; margin-bottom:12px; }
+.pa-next__info { display:flex; flex-direction:column; gap:3px; font-size:0.75rem; color:#374151; }
+.pa-next__info strong { font-size:0.875rem; color:#1a1a1a; }
+.pa-next__confirmed { display:inline-block; font-size:0.625rem; font-weight:700; color:#10b981; background:rgba(16,185,129,0.1); padding:2px 8px; border-radius:6px; width:fit-content; }
+.pa-next__btn { width:100%; padding:9px; border-radius:8px; border:1.5px solid #e06a4f; background:transparent; color:#e06a4f; font-size:0.8125rem; font-weight:700; cursor:pointer; font-family:inherit; }
+.pa-next__btn:hover { background:#e06a4f; color:#fff; }
+
+/* Bottom row */
+.pa-bottom { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+@media(max-width:900px) { .pa-bottom { grid-template-columns:1fr; } }
+
+/* Tasks */
+.pa-task { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f8f8f8; }
+.pa-task:last-child { border-bottom:none; }
+.pa-task__icon { width:32px; height:32px; border-radius:8px; background:rgba(224,106,79,0.06); display:flex; align-items:center; justify-content:center; font-size:0.875rem; flex-shrink:0; }
+.pa-task div { flex:1; font-size:0.75rem; color:#555; line-height:1.4; }
+.pa-task div b { font-size:0.8125rem; color:#1a1a1a; display:block; }
+.pa-task__check { width:20px; height:20px; border-radius:50%; border:2px solid #e0e0e0; display:flex; align-items:center; justify-content:center; font-size:0.6875rem; font-weight:800; color:#10b981; flex-shrink:0; }
+
+/* Activity */
+.pa-act { display:flex; align-items:flex-start; gap:10px; padding:7px 0; border-bottom:1px solid #f8f8f8; }
+.pa-act:last-child { border-bottom:none; }
+.pa-act__dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+.pa-act div { flex:1; font-size:0.75rem; color:#555; line-height:1.4; }
+.pa-act div b { font-size:0.8125rem; color:#1a1a1a; display:block; }
+.pa-act__time { flex-shrink:0; text-align:right; font-size:0.625rem; color:#9ca3af; display:flex; flex-direction:column; gap:1px; }
+
+/* Quick Actions */
+.pa-qas { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pa-qa { display:flex; flex-direction:column; gap:2px; padding:10px 12px; border-radius:10px; border:1px solid #f0f0f0; background:#fafafa; cursor:pointer; text-align:left; font-family:inherit; transition:all 0.12s; }
+.pa-qa:hover { border-color:#e06a4f; background:#fff8f6; }
+.pa-qa span { font-size:1rem; }
+.pa-qa b { font-size:0.75rem; color:#1a1a1a; }
+.pa-qa small { font-size:0.625rem; color:#9ca3af; }

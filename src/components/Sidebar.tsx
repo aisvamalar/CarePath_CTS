@@ -251,7 +251,7 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
     <aside className="sb-sidebar" aria-label="Sidebar">
       {/* Logo */}
       <div className="sb-logo-area">
-        <Logo size={28} textSize="1rem" />
+        <Logo size={48} textSize="1.4rem" />
       </div>
 
       {/* New Chat */}
