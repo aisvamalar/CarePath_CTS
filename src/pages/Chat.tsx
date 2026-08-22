@@ -501,10 +501,27 @@ function EmptyState({
     <div className="ce-root">
       {/* Robot with floating health icons */}
       <div className="ce-hero">
-        <span className="ce-icon ce-icon--1">❤️</span>
-        <span className="ce-icon ce-icon--2">💊</span>
-        <span className="ce-icon ce-icon--3">📋</span>
-        <span className="ce-icon ce-icon--4">💬</span>
+        <span className="ce-icon ce-icon--1">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" fill="#e06a4f" stroke="#e06a4f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+        <span className="ce-icon ce-icon--2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <rect x="7" y="11" width="10" height="10" rx="2" fill="#7cc4a4" stroke="#7cc4a4" strokeWidth="1.5"/>
+            <path d="M12 7v4M12 11h4M12 11h-4" stroke="#7cc4a4" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </span>
+        <span className="ce-icon ce-icon--3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" stroke="#f5a08a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
+        <span className="ce-icon ce-icon--4">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" fill="#d9d4d1" stroke="#d9d4d1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </span>
         <img src={robotImg} alt="CarePath AI" className="ce-hero__robot" />
       </div>
 
@@ -634,7 +651,39 @@ function RightPanel({ phase, intakeFeatures, safetyResult, patientId, onNavigate
   const isAvoidable = safetyResult?.pathway?.decision === 'POTENTIALLY_AVOIDABLE';
   const complaint = intakeFeatures?.chief_complaint;
 
-  const bannerIcon  = isEmergency ? '🚨' : nextAppt ? '✅' : complaint ? '🩺' : '🔔';
+  const getBannerIcon = () => {
+    if (isEmergency) {
+      return (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2L2 18h16L10 2z" fill="currentColor" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+          <path d="M10 8v4M10 14h.01" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      );
+    }
+    if (nextAppt) {
+      return (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <circle cx="10" cy="10" r="8" fill="currentColor"/>
+          <path d="M6 10l2.5 2.5L14 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      );
+    }
+    if (complaint) {
+      return (
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8z" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      );
+    }
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M18 8A8 8 0 104.5 4.5M18 8v4h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+  };
+
+  const bannerIcon = getBannerIcon();
   const bannerTitle = isEmergency ? 'Emergency Detected'
     : nextAppt ? 'Appointment Booked'
     : complaint ? `Assessing: ${complaint}`
