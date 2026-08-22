@@ -230,7 +230,13 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
           onContextMenu={(e) => { e.preventDefault(); setContextMenu({ id: c.id, x: e.clientX, y: e.clientY }); }}
           title={c.title}
         >
-          {c.isPinned && <span className="sb-pin-icon" aria-label="Pinned">📌</span>}
+          {c.isPinned && (
+            <span className="sb-pin-icon" aria-label="Pinned">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 2l1.5 3.5L12 7l-1.5 3.5L7 14l-1.5-3.5L2 7l3.5-1.5L7 2z" fill="#f2846b" stroke="#f2846b" strokeWidth="1" strokeLinejoin="round"/>
+              </svg>
+            </span>
+          )}
           <span className="sb-chat-item__title">{c.title}</span>
           <span className="sb-chat-item__date">
             {c.createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -341,13 +347,35 @@ export default function Sidebar({ onNewChat, onClose }: SidebarProps) {
           onClick={e => e.stopPropagation()}
         >
           <button className="sb-context-menu__item" onClick={() => handlePin(contextMenu.id)}>
-            {state.conversations.find(c => c.id === contextMenu.id)?.isPinned ? '📌 Unpin' : '📌 Pin'}
+            {state.conversations.find(c => c.id === contextMenu.id)?.isPinned ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '8px' }}>
+                  <path d="M8 2l1.5 3.5L13 7l-1.5 3.5L8 14l-1.5-3.5L3 7l3.5-1.5L8 2z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                </svg>
+                Unpin
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '8px' }}>
+                  <path d="M8 2l1.5 3.5L13 7l-1.5 3.5L8 14l-1.5-3.5L3 7l3.5-1.5L8 2z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinejoin="round"/>
+                </svg>
+                Pin
+              </>
+            )}
           </button>
           <button className="sb-context-menu__item" onClick={() => handleRenameStart(contextMenu.id)}>
-            ✏️ Rename
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '8px' }}>
+              <path d="M11.5 2.5l2 2L6 12H4v-2l7.5-7.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 4l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Rename
           </button>
           <button className="sb-context-menu__item sb-context-menu__item--danger" onClick={() => handleDelete(contextMenu.id)}>
-            🗑️ Delete
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ marginRight: '8px' }}>
+              <path d="M2 4h12M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1m2 0v9a2 2 0 01-2 2H5a2 2 0 01-2-2V4h10z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M7 7v5M9 7v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+            Delete
           </button>
         </div>
       )}
