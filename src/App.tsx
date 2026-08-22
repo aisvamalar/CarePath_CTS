@@ -19,6 +19,7 @@ import CareManagerPatientDetail from './pages/care_manager/PatientDetail';
 import CareManagerReadmission from './pages/care_manager/Readmission';
 import CareManagerPostDischarge from './pages/care_manager/PostDischarge';
 import CareManagerCreatePatient from './pages/care_manager/CreatePatient';
+import CareManagerFinancial from './pages/care_manager/Financial';
 import RouteMap from './pages/RouteMap';
 
 function AppRoutes() {
@@ -50,6 +51,7 @@ function AppRoutes() {
         <Route path="/care-manager/patients/:id" element={state.token ? <CareManagerPatientDetail /> : <Navigate to="/login" replace />} />
         <Route path="/care-manager/readmission" element={state.token ? <CareManagerReadmission /> : <Navigate to="/login" replace />} />
         <Route path="/care-manager/post-discharge" element={state.token ? <CareManagerPostDischarge /> : <Navigate to="/login" replace />} />
+        <Route path="/care-manager/financial" element={state.token ? <CareManagerFinancial /> : <Navigate to="/login" replace />} />
         <Route path="/care-manager/analytics" element={state.token ? <CareManagerReadmission /> : <Navigate to="/login" replace />} />
 
         {/* Default redirects */}

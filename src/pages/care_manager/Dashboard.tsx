@@ -15,6 +15,7 @@ import KpiCard from '../../components/ui/KpiCard';
 import RiskBadge from '../../components/ui/RiskBadge';
 import { ErrorState, EmptyState, SkeletonTable, Skeleton } from '../../components/ui/States';
 import { useCareManagerData, type EnrichedPatient } from '../../hooks/useCareManagerData';
+import { useFinancialMetrics } from '../../hooks/useFinancialData';
 
 const RISK_COLORS = {
   high: '#e06a4f',
@@ -33,6 +34,9 @@ export default function CareManagerDashboard() {
   const navigate = useNavigate();
   const data = useCareManagerData();
   const { analytics, patients, enriched, tasks, loading, error, reload, enrichedAttempted } = data;
+  
+  // Financial data for KPIs
+  const financial = useFinancialMetrics();
 
   const [filter, setFilter] = useState<AttentionFilter>('high');
 
@@ -187,6 +191,39 @@ export default function CareManagerDashboard() {
           hint="Open care-plan tasks"
           onClick={() => navigate('/care-manager/post-discharge')}
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2.8 5.4l1.6 1.6 2.6-2.6M2.8 12.4l1.6 1.6 2.6-2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M9.6 5.6h5.6M9.6 12.6h5.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>}
+        />
+        {/* Financial KPIs */}
+        <KpiCard
+          tone="coral"
+          loading={financial.loading}
+          label="Total Cost Savings"
+          value={
+            financial.metrics 
+              ? (() => {
+                  const savings = parseFloat(financial.metrics.total_savings);
+                  if (savings === 0) return '$0';
+                  if (savings >= 1000000) return `$${(savings / 1000000).toFixed(1)}M`;
+                  if (savings >= 1000) return `$${(savings / 1000).toFixed(1)}K`;
+                  return `$${savings.toFixed(0)}`;
+                })()
+              : null
+          }
+          hint="Program impact (last 30d)"
+          onClick={() => navigate('/care-manager/financial')}
+          icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1.8v14.4M9 1.8l5.4 5.4M9 1.8L3.6 7.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        />
+        <KpiCard
+          tone="peach"
+          loading={financial.loading}
+          label="ROI"
+          value={
+            financial.metrics && parseFloat(financial.metrics.roi_percentage) >= 0
+              ? `${parseFloat(financial.metrics.roi_percentage).toFixed(1)}%`
+              : null
+          }
+          hint="Return on investment"
+          onClick={() => navigate('/care-manager/financial')}
+          icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2.4 11.4l3.6-4 3 2.6 3-4 3.6 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
         />
       </div>
 

@@ -101,6 +101,13 @@ const I = {
       <path d="M7.2 7a1.9 1.9 0 013.6.8c0 1.3-1.8 1.5-1.8 2.8M9 12.9h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   ),
+  financial: (
+    <svg width="17" height="17" viewBox="0 0 18 18" fill="none">
+      <circle cx="9" cy="9" r="7.2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M9 5.4v7.2M6.6 9h4.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M9 3.6v1.8M9 12.6v1.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 const PRIMARY_NAV: NavItem[] = [
@@ -108,6 +115,7 @@ const PRIMARY_NAV: NavItem[] = [
   { key: 'patients', label: 'Patients', path: '/care-manager/patients', icon: I.patients },
   { key: 'readmission', label: 'Readmission', path: '/care-manager/readmission', icon: I.readmission },
   { key: 'post-discharge', label: 'Post Discharge', path: '/care-manager/post-discharge', icon: I.postDischarge },
+  { key: 'financial', label: 'Financial', path: '/care-manager/financial', icon: I.financial },
   { key: 'analytics', label: 'Analytics', path: '/care-manager/analytics', icon: I.analytics },
 ];
 
