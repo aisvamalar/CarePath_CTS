@@ -202,8 +202,15 @@ export default function FollowUpTasks() {
     );
   }
 
-  const pendingTasks = tasks.filter(t => t.status === 'SCHEDULED' || t.status === 'SENT');
-  const completedTasks = tasks.filter(t => t.status === 'COMPLETED' || t.status === 'RESPONDED');
+  const pendingTasks = tasks.filter(t => 
+    t.status === 'SCHEDULED' || t.status === 'SENT'
+  );
+  
+  // Only show the 3 most recent completed tasks to avoid clutter
+  const completedTasks = tasks
+    .filter(t => t.status === 'COMPLETED' || t.status === 'RESPONDED')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3);
 
   return (
     <div className="cp-plans-page">
@@ -283,8 +290,8 @@ export default function FollowUpTasks() {
               </section>
             )}
 
-            {/* Completed Tasks */}
-            {completedTasks.length > 0 && (
+            {/* Completed Tasks - Hidden by default to reduce clutter */}
+            {completedTasks.length > 0 && false && (
               <section className="cp-plan-section">
                 <h3 className="cp-plan-section__title">COMPLETED ({completedTasks.length})</h3>
                 <div className="cp-tasks">

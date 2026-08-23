@@ -61,15 +61,99 @@ export default function Appointments() {
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [rescheduleTarget, setRescheduleTarget] = useState<StoredAppointment | null>(null);
 
+  const handleCancelAppointment = async (appointmentId: string) => {
+    if (!patientId) return;
+    
+    try {
+      const token = localStorage.getItem('cp_token');
+      if (!token) {
+        alert('Please log in to cancel appointments');
+        return;
+      }
+      
+      const response = await fetch(`http://localhost:8000/api/v1/patients/${patientId}/appointments/${appointmentId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          appointment_id: appointmentId,
+          reason: 'Cancelled by patient'
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to cancel appointment');
+      }
+      
+      alert('Appointment cancelled successfully');
+      await refresh();
+    } catch (error: any) {
+      console.error('Failed to cancel appointment:', error);
+      alert(error.message || 'Failed to cancel appointment');
+    }
+  };
+
   const refresh = useCallback(async () => {
-    const all = appointmentStore.list(patientId ?? undefined);
-    setAppts(all);
-    await Promise.allSettled(all.filter(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED').map(async a => { try { const s = await careService.getStatus(a.appointment_id, patientId ?? undefined); appointmentStore.updateStatus(a.appointment_id, s.status); } catch {} }));
-    setAppts(appointmentStore.list(patientId ?? undefined));
+    // First, get local appointments
+    const localAppts = appointmentStore.list(patientId ?? undefined);
+    
+    // Then fetch from API if we have a patient ID and token
+    if (patientId) {
+      try {
+        const token = localStorage.getItem('cp_token');
+        if (token) {
+          const response = await fetch(`http://localhost:8000/api/v1/patients/${patientId}/appointments`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const apiAppts = await response.json();
+            
+            // Convert API appointments to StoredAppointment format and merge
+            const converted: StoredAppointment[] = apiAppts.map((a: any) => ({
+              appointment_id: a.appointment_id,
+              patient_id: patientId,
+              provider_id: a.provider_id,
+              provider_name: a.provider_name,
+              care_type: a.destination,
+              specialty: a.specialty,
+              slot: a.slot_id ? {
+                slot_id: a.slot_id,
+                provider_id: a.provider_id,
+                start_time: a.start_time,
+                end_time: a.end_time
+              } : null,
+              date: new Date(a.start_time).toISOString(),
+              time: new Date(a.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+              status: a.status,
+              created_at: a.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }));
+            
+            // Merge: prefer API appointments, add local ones not in API
+            const apiIds = new Set(converted.map(a => a.appointment_id));
+            const merged = [...converted, ...localAppts.filter(a => !apiIds.has(a.appointment_id))];
+            setAppts(merged);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch appointments from API:', error);
+        // Fall through to use local appointments only
+      }
+    }
+    
+    // Fallback: use local appointments only
+    setAppts(localAppts);
   }, [patientId]);
   useEffect(() => { void refresh(); return appointmentStore.subscribe(() => setAppts(appointmentStore.list(patientId ?? undefined))); }, [refresh, patientId]);
 
-  const upcoming = appts.filter(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED');
+  const upcoming = appts.filter(a => a.status === 'BOOKED' || a.status === 'RESCHEDULED' || a.status === 'CONFIRMED').filter(a => a.status !== 'CANCELLED');
   const completed = appts.filter(a => a.status === 'COMPLETED');
   const nextAppt = upcoming[0] ?? null;
   const carePlan = state.conversations.map(c => c.safetyResult?.pathway?.care_plan ?? []).find(p => p.length > 0) ?? [];
@@ -137,6 +221,7 @@ export default function Appointments() {
                     <img src={docPhoto(a.provider_id, a.appointment_id)} className="pa-appt__photo" alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                     <div className="pa-appt__info"><strong>{a.provider_name ?? 'Central Texas Family Medicine'}</strong><span>{a.specialty ?? a.care_type ?? 'PCP'}</span>{a.hospital_name && <span className="pa-appt__loc">{a.hospital_name}</span>}</div>
                     <span className="pa-appt__status">{a.status === 'BOOKED' ? 'Confirmed' : 'Pending'}</span>
+                    <button className="pa-appt__resched pa-appt__cancel" onClick={(e) => { e.stopPropagation(); if (confirm('Cancel this appointment?')) handleCancelAppointment(a.appointment_id); }} style={{marginRight: '8px', background: '#ef4444'}}>Cancel</button>
                     <button className="pa-appt__resched" onClick={(e) => { e.stopPropagation(); setRescheduleTarget(a); }}>Reschedule</button>
                     <span className="pa-appt__arrow">›</span>
                   </div>
@@ -189,7 +274,10 @@ export default function Appointments() {
                   </div>
                 </div>
                 <button className="pa-next__btn">View Details</button>
-                <button className="pa-next__resched" onClick={() => setRescheduleTarget(nextAppt)}>Reschedule</button>
+                <div style={{display: 'flex', gap: '8px'}}>
+                  <button className="pa-next__resched" onClick={() => {if (confirm('Cancel this appointment?')) handleCancelAppointment(nextAppt.appointment_id);}} style={{flex: 1, background: '#ef4444'}}>Cancel</button>
+                  <button className="pa-next__resched" onClick={() => setRescheduleTarget(nextAppt)} style={{flex: 1}}>Reschedule</button>
+                </div>
               </div>
             )}
           </aside>

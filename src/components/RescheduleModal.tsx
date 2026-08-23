@@ -1,15 +1,6 @@
 /**
  * CarePath — Reschedule Appointment Modal
- *
- * NOTE (temporary — frontend-only simulation):
- * The real Shared Appointment Agent (POST /care/appointments/reschedule)
- * is not wired up yet on the backend, so this modal generates a set of
- * plausible open slots on the client and applies the reschedule directly
- * to the local appointment store when the patient confirms. No network
- * call is made. Once the real reschedule route is ready, replace
- * `generateLocalSlots()` + the local update in `handleConfirm()` with a
- * call to `careService.reschedule(...)` (already implemented in
- * services/careService.ts) — the rest of the UI stays the same.
+ * Fetches REAL available slots from backend API
  */
 import { useEffect, useState } from 'react';
 import Modal from './ui/Modal';
@@ -25,31 +16,6 @@ interface RescheduleModalProps {
   onRescheduled?: (updated: StoredAppointment) => void;
 }
 
-const SLOT_HOURS = [9, 11, 14, 16]; // 9am, 11am, 2pm, 4pm
-const DAYS_AHEAD = 7;
-
-/** Build a short-term list of open-looking slots for the given provider.
- *  Frontend-only stand-in until the real availability endpoint is ready. */
-function generateLocalSlots(providerId: string): Slot[] {
-  const slots: Slot[] = [];
-  const now = new Date();
-  for (let d = 1; d <= DAYS_AHEAD; d++) {
-    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
-    if (day.getDay() === 0) continue; // skip Sundays
-    for (const hour of SLOT_HOURS) {
-      const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, 0, 0);
-      const end = new Date(start.getTime() + 30 * 60000);
-      slots.push({
-        slot_id: `local_${start.getTime()}`,
-        provider_id: providerId,
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-      });
-    }
-  }
-  return slots;
-}
-
 export default function RescheduleModal({ open, appointment, patientId, onClose, onRescheduled }: RescheduleModalProps) {
   const toast = useToast();
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -61,48 +27,98 @@ export default function RescheduleModal({ open, appointment, patientId, onClose,
     if (!open || !appointment) return;
     setSelectedSlot(null);
     setLoadingSlots(true);
-    // Simulate a brief lookup so the UI doesn't feel instantaneous/fake.
-    const t = setTimeout(() => {
-      setSlots(generateLocalSlots(appointment.provider_id));
-      setLoadingSlots(false);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [open, appointment]);
+    
+    // Fetch REAL available slots from backend
+    const fetchSlots = async () => {
+      try {
+        const token = localStorage.getItem('cp_token');
+        if (!token) {
+          throw new Error('Please log in to view available slots');
+        }
+        
+        const response = await fetch(
+          `http://localhost:8000/api/v1/providers/${appointment.provider_id}/available-slots?days_ahead=7`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch available slots');
+        }
+        
+        const realSlots = await response.json();
+        setSlots(realSlots);
+      } catch (error) {
+        console.error('Failed to fetch slots:', error);
+        toast.error('Failed to load available slots');
+        setSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    
+    void fetchSlots();
+  }, [open, appointment, toast]);
 
   const handleConfirm = async () => {
     if (!appointment || !patientId || !selectedSlot) return;
     setSubmitting(true);
     try {
-      // TODO(real backend): swap this block for
-      //   const res = await careService.reschedule({
-      //     patient_id: patientId,
-      //     appointment_id: appointment.appointment_id,
-      //     recommendation_id: appointment.recommendation_id ?? undefined,
-      //     new_slot_id: selectedSlot.slot_id,
-      //   });
-      // once POST /care/appointments/reschedule is live, then pass `res`
-      // (instead of `localResponse`) into appointmentStore.upsertFromResponse.
-      await new Promise((r) => setTimeout(r, 500));
+      // Call the REAL reschedule API
+      const token = localStorage.getItem('cp_token');
+      if (!token) {
+        throw new Error('Please log in to reschedule appointments');
+      }
+      
+      const response = await fetch(`http://localhost:8000/api/v1/patients/${patientId}/appointments/${appointment.appointment_id}/reschedule`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          new_slot_id: selectedSlot.slot_id,
+          reason: 'Rescheduled by patient'
+        })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to reschedule appointment');
+      }
+      
+      const result = await response.json();
+      
+      // Update local store with new data
       const localResponse: AppointmentResponse = {
         appointment_id: appointment.appointment_id,
         patient_id: patientId,
-        status: 'RESCHEDULED',
+        status: 'BOOKED',
         provider_id: appointment.provider_id,
         provider_name: appointment.provider_name,
         care_type: appointment.care_type,
         specialty: appointment.specialty,
         hospital_id: appointment.hospital_id,
         hospital_name: appointment.hospital_name,
-        slot: selectedSlot,
-        date: selectedSlot.start_time.slice(0, 10),
-        time: selectedSlot.start_time.slice(11, 16),
+        slot: {
+          slot_id: result.new_slot_id,
+          provider_id: appointment.provider_id,
+          start_time: result.new_start_time,
+          end_time: result.new_end_time
+        },
+        date: result.new_start_time.slice(0, 10),
+        time: new Date(result.new_start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
       };
       const updated = appointmentStore.upsertFromResponse(localResponse, appointment.recommendation_id ?? undefined, null);
-      toast.success('Appointment rescheduled.');
+      toast.success('Appointment rescheduled successfully!');
       onRescheduled?.(updated);
       onClose();
-    } catch {
-      toast.error('Something went wrong while rescheduling. Please try again.');
+    } catch (err: any) {
+      console.error('Failed to reschedule:', err);
+      toast.error(err.message || 'Something went wrong while rescheduling. Please try again.');
     } finally {
       setSubmitting(false);
     }
