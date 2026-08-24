@@ -68,6 +68,98 @@ export interface PatientResponseResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Alternate Care Navigation Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PatientFeatures {
+  primary_symptom_category: string;
+  pain_level_self_reported?: number | null;
+  pain_location?: string | null;
+  pain_onset?: string | null;
+  age?: number | null;
+  gender?: string | null;
+}
+
+export interface PatientLocation {
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  radius_km?: number;
+}
+
+export interface CareDecision {
+  destination: string;
+  specialty?: string;
+  explanation: string;
+  rule_id?: string;
+}
+
+export interface Provider {
+  provider_id: string;
+  name: string;
+  destination_type: string;
+  specialty?: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  distance_km?: number;
+}
+
+export interface Slot {
+  slot_id: string;
+  provider_id: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface NavigateRequest {
+  mrn: string;
+  patient: PatientFeatures;
+  location: PatientLocation;
+}
+
+export interface NavigateResponse {
+  recommendation_id: string;
+  mrn: string;
+  decision: CareDecision;
+  top_providers: Provider[];
+  appointment_agent_response?: string;
+  nearby_providers?: any[];
+}
+
+export interface AvailabilityRequest {
+  recommendation_id: string;
+  provider_id: string;
+  patient_id?: string;
+  date_range?: 'next_7_days' | 'next_30_days';
+}
+
+export interface AvailabilityResponse {
+  available_slots: Slot[];
+  provider_id: string;
+  care_type: string;
+  specialty?: string;
+}
+
+export interface BookingRequest {
+  patient_id: string;
+  recommendation_id: string;
+  provider_id: string;
+  slot_id: string;
+}
+
+export interface BookingResponse {
+  appointment_id: string;
+  patient_id: string;
+  status: string;
+  provider_id: string;
+  provider_name: string;
+  care_type: string;
+  specialty?: string;
+  slot: Slot;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // API Methods
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -155,6 +247,49 @@ export const careService = {
       .then((r) => r.data)
       .catch((err) => {
         console.error('Failed to fetch tasks:', err);
+        throw err;
+      }),
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Alternate Care Navigation APIs
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Navigate - Find alternate care options based on symptoms and location
+   * POST /api/v1/alternate-care/navigate
+   */
+  navigate: (request: NavigateRequest) =>
+    client
+      .post<NavigateResponse>('/alternate-care/navigate', request)
+      .then((r) => r.data)
+      .catch((err) => {
+        console.error('Failed to navigate care options:', err);
+        throw err;
+      }),
+
+  /**
+   * Get appointment availability for a provider
+   * POST /api/v1/alternate-care/appointments/availability
+   */
+  availability: (request: AvailabilityRequest) =>
+    client
+      .post<AvailabilityResponse>('/alternate-care/appointments/availability', request)
+      .then((r) => r.data)
+      .catch((err) => {
+        console.error('Failed to fetch availability:', err);
+        throw err;
+      }),
+
+  /**
+   * Book an appointment with a provider
+   * POST /api/v1/alternate-care/appointments/book
+   */
+  book: (request: BookingRequest) =>
+    client
+      .post<BookingResponse>('/alternate-care/appointments/book', request)
+      .then((r) => r.data)
+      .catch((err) => {
+        console.error('Failed to book appointment:', err);
         throw err;
       }),
 };
