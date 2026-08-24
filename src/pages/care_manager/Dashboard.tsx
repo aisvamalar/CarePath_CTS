@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
 import CareManagerLayout from '../../components/care_manager/CareManagerLayout';
 import CareManagerRail from '../../components/care_manager/CareManagerRail';
@@ -91,14 +91,32 @@ export default function CareManagerDashboard() {
   }, [tasks]);
 
   // ── Risk distribution donut from aggregate analytics ──
-  const riskSlices = useMemo(() => {
-    if (!analytics) return [];
-    return [
-      { name: 'Low risk', value: analytics.low_risk_patients, color: RISK_COLORS.low },
-      { name: 'Medium risk', value: analytics.medium_risk_patients, color: RISK_COLORS.medium },
-      { name: 'High risk', value: analytics.high_risk_patients, color: RISK_COLORS.high },
-    ].filter((s) => s.value > 0);
+  /**
+   * Slices carry the scored band boundaries so the legend can spell them out,
+   * plus each band's share of the scored population.
+   */
+  const riskDist = useMemo(() => {
+    if (!analytics) return { slices: [], total: 0 };
+    const bands = [
+      { name: 'High Risk', range: '≥ 0.70', value: analytics.high_risk_patients, color: RISK_COLORS.high },
+      { name: 'Medium Risk', range: '0.40 – 0.69', value: analytics.medium_risk_patients, color: RISK_COLORS.medium },
+      { name: 'Low Risk', range: '< 0.40', value: analytics.low_risk_patients, color: RISK_COLORS.low },
+    ];
+    const total = bands.reduce((sum, b) => sum + b.value, 0);
+    return {
+      total,
+      slices: bands.map((b) => ({
+        ...b,
+        pct: total > 0 ? (b.value / total) * 100 : 0,
+      })),
+    };
   }, [analytics]);
+
+  /** Chart-only slices: zero-value bands would render as invisible arcs. */
+  const riskSlices = useMemo(
+    () => riskDist.slices.filter((s) => s.value > 0),
+    [riskDist],
+  );
 
   // ── Registrations over the last 7 days, computed from real created_at values ──
   const registrationTrend = useMemo(() => {
@@ -119,6 +137,31 @@ export default function CareManagerDashboard() {
   }, [patients]);
 
   const hasAnyRegistration = registrationTrend.some((d) => d.count > 0);
+
+  /**
+   * Real 7-day series for the "Active Patients" sparkline: the cumulative count
+   * of patient records that existed at the end of each of the last 7 days,
+   * computed from each record's created_at. Only rendered when the roster
+   * actually spans more than one distinct day, otherwise the line would be flat
+   * and misleading.
+   */
+  const activePatientsSeries = useMemo(() => {
+    if (patients.length === 0) return undefined;
+    const series: number[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const cutoff = new Date();
+      cutoff.setHours(23, 59, 59, 999);
+      cutoff.setDate(cutoff.getDate() - i);
+      series.push(
+        patients.filter((p) => {
+          const c = new Date(p.created_at);
+          return !Number.isNaN(c.getTime()) && c <= cutoff;
+        }).length,
+      );
+    }
+    // A flat line carries no information — skip it.
+    return new Set(series).size > 1 ? series : undefined;
+  }, [patients]);
 
   return (
     <CareManagerLayout breadcrumb="Dashboard" rightPanel={<CareManagerRail data={data} />}>
@@ -153,6 +196,8 @@ export default function CareManagerDashboard() {
           label="Active Patients"
           value={analytics?.active_patients ?? null}
           hint="Currently active records"
+          accent="coral"
+          sparkline={activePatientsSeries}
           onClick={() => navigate('/care-manager/patients')}
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="7" cy="6" r="2.7" stroke="currentColor" strokeWidth="1.5"/><path d="M1.8 15c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M12.6 4.2a2.5 2.5 0 010 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>}
         />
@@ -301,7 +346,7 @@ export default function CareManagerDashboard() {
                       </td>
                       <td className="cmp-mono">{p.mrn}</td>
                       <td><RiskBadge level={p.riskLevel} score={p.riskScore} showScore /></td>
-                      <td className="cmp-muted">{p.postDischargeStatus ?? '—'}</td>
+                      <td><CareStatus status={p.postDischargeStatus} /></td>
                       <td className="cmp-muted">
                         {p.lastActivityAt
                           ? new Date(p.lastActivityAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -349,116 +394,24 @@ export default function CareManagerDashboard() {
         )}
       </section>
 
-      {/* ── Analytics row ── */}
-      <div className="cmp-analytics">
-        {/* Workload donut */}
-        <section className="cmp-card cmp-card--analytics">
-          <header className="cmp-card__head">
-            <h3 className="cmp-card__title">Care Plan Workload</h3>
-          </header>
-          {loading || !enrichedAttempted ? (
-            <Skeleton height={180} />
-          ) : workload.total === 0 ? (
-            <EmptyState compact icon="📋" title="No task data" message="No care-plan tasks returned." />
-          ) : (
-            <div className="cmp-donutwrap cmp-donutwrap--center">
-              <div className="cmp-donut cmp-donut--lg">
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie
-                      data={workload.slices}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={58}
-                      outerRadius={82}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {workload.slices.map((s) => <Cell key={s.name} fill={s.color} />)}
-                    </Pie>
-                    <Tooltip content={<ChartTip suffix=" tasks" />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="cmp-donut__center">
-                  <strong>{workload.pct !== null ? `${workload.pct}%` : 'N/A'}</strong>
-                  <span>Completed</span>
-                </div>
-              </div>
-              <ul className="cmp-legend">
-                {workload.slices.map((s) => (
-                  <li key={s.name}>
-                    <span className="cmp-legend__dot" style={{ background: s.color }} />
-                    {s.name}<strong>{s.value}</strong>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
+      {/* ── Analytics row: risk distribution + registration trend ── */}
+      <div className="cmp-analytics cmp-analytics--two">
 
-        {/* Registrations line chart */}
-        <section className="cmp-card cmp-card--analytics">
-          <header className="cmp-card__head">
-            <h3 className="cmp-card__title">New Registrations</h3>
-            <span className="cmp-card__tag">Last 7 days</span>
+        {/* Readmission risk distribution */}
+        <section className="cmp-panel cmp-panel--chart">
+          <header className="cmp-panel__head">
+            <h2 className="cmp-panel__title">Readmission Risk Distribution</h2>
+            <span className="cmp-pill">Scored patients</span>
           </header>
-          {loading ? (
-            <Skeleton height={180} />
-          ) : !hasAnyRegistration ? (
-            <EmptyState compact icon="📈" title="No registrations" message="No patients registered in the last 7 days." />
-          ) : (
-            <div className="cmp-chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={registrationTrend}
-                  margin={{ top: 8, right: 12, bottom: 4, left: 0 }}
-                >
-                  <CartesianGrid stroke="rgba(242,132,107,0.12)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
-                    axisLine={false}
-                    tickLine={false}
-                    height={22}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                    width={28}
-                  />
-                  <Tooltip content={<ChartTip suffix=" patients" />} />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="#f2846b"
-                    strokeWidth={2.4}
-                    dot={{ r: 4, fill: '#f2846b', strokeWidth: 0 }}
-                    activeDot={{ r: 6, fill: '#e06a4f' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </section>
 
-        {/* Risk distribution donut */}
-        <section className="cmp-card cmp-card--analytics">
-          <header className="cmp-card__head">
-            <h3 className="cmp-card__title">Risk Distribution</h3>
-            <button className="cmp-card__link" onClick={() => navigate('/care-manager/analytics')}>Details</button>
-          </header>
           {loading ? (
-            <Skeleton height={180} />
+            <Skeleton height={210} />
           ) : riskSlices.length === 0 ? (
             <EmptyState compact icon="🧭" title="No risk data" message="Run predictions to populate risk levels." />
           ) : (
-            <div className="cmp-donutwrap cmp-donutwrap--center">
-              <div className="cmp-donut cmp-donut--lg">
-                <ResponsiveContainer width="100%" height={180}>
+            <div className="cmp-riskdist">
+              <div className="cmp-donut">
+                <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie
                       data={riskSlices}
@@ -466,10 +419,12 @@ export default function CareManagerDashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={58}
-                      outerRadius={82}
-                      paddingAngle={3}
+                      innerRadius={62}
+                      outerRadius={90}
+                      paddingAngle={2}
                       stroke="none"
+                      startAngle={90}
+                      endAngle={-270}
                     >
                       {riskSlices.map((s, i) => <Cell key={s.name} fill={s.color ?? PLAN_COLORS[i]} />)}
                     </Pie>
@@ -477,24 +432,103 @@ export default function CareManagerDashboard() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="cmp-donut__center">
-                  <strong>{analytics?.active_patients?.toLocaleString() ?? 'N/A'}</strong>
-                  <span>Patients</span>
+                  <strong>{riskDist.total.toLocaleString()}</strong>
+                  <span>Total</span>
                 </div>
               </div>
-              <ul className="cmp-legend">
-                {riskSlices.map((s) => (
-                  <li key={s.name}>
-                    <span className="cmp-legend__dot" style={{ background: s.color }} />
-                    {s.name}<strong>{s.value}</strong>
+
+              <ul className="cmp-risklegend">
+                {riskDist.slices.map((s) => (
+                  <li key={s.name} className="cmp-risklegend__row">
+                    <span className="cmp-risklegend__dot" style={{ background: s.color }} />
+                    <span className="cmp-risklegend__text">
+                      <span className="cmp-risklegend__name">{s.name}</span>
+                      <span className="cmp-risklegend__range">({s.range})</span>
+                    </span>
+                    <span className="cmp-risklegend__val">
+                      {s.value} <span className="cmp-risklegend__pct">({s.pct.toFixed(1)}%)</span>
+                    </span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
         </section>
+
+        {/* Registration trend — the only real time series the backend exposes */}
+        <section className="cmp-panel cmp-panel--chart">
+          <header className="cmp-panel__head">
+            <h2 className="cmp-panel__title">New Registrations</h2>
+            <span className="cmp-pill">Last 7 days</span>
+          </header>
+
+          {loading ? (
+            <Skeleton height={210} />
+          ) : !hasAnyRegistration ? (
+            <EmptyState compact icon="📈" title="No registrations" message="No patients registered in the last 7 days." />
+          ) : (
+            <div className="cmp-chart-wrap">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={registrationTrend} margin={{ top: 10, right: 8, bottom: 0, left: -18 }}>
+                  <defs>
+                    <linearGradient id="cmpTrendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f2846b" stopOpacity={0.28} />
+                      <stop offset="100%" stopColor="#f2846b" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(242,132,107,0.12)" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    height={24}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                    width={40}
+                  />
+                  <Tooltip content={<ChartTip suffix=" patients" />} />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#f2846b"
+                    strokeWidth={2.4}
+                    fill="url(#cmpTrendFill)"
+                    dot={{ r: 3.5, fill: '#f2846b', strokeWidth: 0 }}
+                    activeDot={{ r: 6, fill: '#e06a4f', stroke: 'white', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </section>
       </div>
     </CareManagerLayout>
   );
+}
+
+/**
+ * Renders the post-discharge status as a readable pill. The backend sends
+ * snake_case tokens (e.g. `at_risk`, `not_started`), so they get humanised
+ * here and mapped onto a tone rather than shown raw.
+ */
+function CareStatus({ status }: { status: string | null }) {
+  if (!status) return <span className="cmp-muted">—</span>;
+
+  const key = status.toLowerCase();
+  const tone =
+    key.includes('at_risk') || key.includes('risk') ? 'warn'
+      : key.includes('complete') || key.includes('active') ? 'ok'
+        : key.includes('not_started') || key.includes('pending') ? 'idle'
+          : 'idle';
+
+  const label = status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return <span className={`cmp-status cmp-status--${tone}`}>{label}</span>;
 }
 
 /** Shared tooltip so all charts read the same way. */

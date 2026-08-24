@@ -17,7 +17,6 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CareManagerData, DerivedTask, DerivedAppointment } from '../../hooks/useCareManagerData';
 import { Skeleton, EmptyState } from '../ui/States';
-import RiskBadge from '../ui/RiskBadge';
 import { useToast } from '../ui/Toast';
 
 /* ── Helpers ── */
@@ -134,10 +133,10 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
   return (
     <div className="cmr">
 
-      {/* ── 1. Live Stats Strip ── */}
+      {/* ── 1. Live Overview ── */}
       <section className="cmr-card cmr-stats-strip">
         <header className="cmr-card__head">
-          <h3 className="cmr-card__title">Quick Overview</h3>
+          <h3 className="cmr-card__title">Live Overview</h3>
           {analytics && (
             <span className="cmr-live-dot" title="Live data">
               <span className="cmr-live-dot__pulse" />
@@ -146,38 +145,50 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
           )}
         </header>
         {loading ? (
-          <div className="cmr-skel"><Skeleton height={48} /></div>
+          <div className="cmr-skel"><Skeleton height={92} /></div>
         ) : (
           <div className="cmr-stats">
             <button className="cmr-stat" onClick={() => navigate('/care-manager/patients')}>
-              <span className="cmr-stat__val">{analytics?.active_patients ?? '—'}</span>
-              <span className="cmr-stat__key">Patients</span>
+              <span className="cmr-stat__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><circle cx="7" cy="6" r="2.7" stroke="currentColor" strokeWidth="1.5"/><path d="M1.8 15c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M12.6 4.2a2.5 2.5 0 010 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+              </span>
+              <span className="cmr-stat__body">
+                <span className="cmr-stat__val">{analytics?.active_patients ?? '—'}</span>
+                <span className="cmr-stat__key">Patients</span>
+              </span>
             </button>
-            <button className="cmr-stat cmr-stat--red" onClick={() => navigate('/care-manager/readmission?risk=high')}>
-              <span className="cmr-stat__val">{analytics?.high_risk_patients ?? '—'}</span>
-              <span className="cmr-stat__key">High Risk</span>
+
+            <button className="cmr-stat" onClick={() => navigate('/care-manager/readmission?risk=high')}>
+              <span className="cmr-stat__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M9 2.4l6.6 12H2.4L9 2.4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M9 7v3.2M9 12.4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </span>
+              <span className="cmr-stat__body">
+                <span className="cmr-stat__val">{analytics?.high_risk_patients ?? '—'}</span>
+                <span className="cmr-stat__key">High Risk</span>
+              </span>
             </button>
-            <button className="cmr-stat cmr-stat--amber" onClick={() => navigate('/care-manager/readmission?risk=medium')}>
-              <span className="cmr-stat__val">{analytics?.medium_risk_patients ?? '—'}</span>
-              <span className="cmr-stat__key">Medium</span>
+
+            <button className="cmr-stat cmr-stat--blue" onClick={() => navigate('/care-manager/post-discharge')}>
+              <span className="cmr-stat__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="2" y="3.2" width="14" height="9.6" rx="1.6" stroke="currentColor" strokeWidth="1.5"/><path d="M6.4 15.4h5.2M9 12.8v2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </span>
+              <span className="cmr-stat__body">
+                <span className="cmr-stat__val">{analytics?.post_discharge_active_monitors ?? '—'}</span>
+                <span className="cmr-stat__key">Monitored</span>
+              </span>
             </button>
-            <button className="cmr-stat cmr-stat--green" onClick={() => navigate('/care-manager/post-discharge')}>
-              <span className="cmr-stat__val">{analytics?.post_discharge_active_monitors ?? '—'}</span>
-              <span className="cmr-stat__key">Monitored</span>
+
+            <button className="cmr-stat" onClick={() => navigate('/care-manager/readmission')}>
+              <span className="cmr-stat__icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><path d="M1.8 9h2.4l1.5-4.2 2.4 8.4 2-6 1.4 3h2.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+              <span className="cmr-stat__body">
+                <span className="cmr-stat__val">
+                  {analytics ? `${analytics.readmission_rate_pct.toFixed(1)}%` : '—'}
+                </span>
+                <span className="cmr-stat__key">Readmission Rate</span>
+              </span>
             </button>
-          </div>
-        )}
-        {/* Readmission rate bar */}
-        {!loading && analytics && (
-          <div className="cmr-ratebar">
-            <span className="cmr-ratebar__label">Readmission rate</span>
-            <div className="cmr-ratebar__track">
-              <div
-                className="cmr-ratebar__fill"
-                style={{ width: `${Math.min(analytics.readmission_rate_pct, 100)}%` }}
-              />
-            </div>
-            <span className="cmr-ratebar__pct">{analytics.readmission_rate_pct.toFixed(1)}%</span>
           </div>
         )}
       </section>
@@ -234,44 +245,52 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
         ) : highRiskPatients.length === 0 ? (
           <p className="cmr-empty">No high-risk patients scored yet.</p>
         ) : (
-          <ul className="cmr-hlist">
-            {highRiskPatients.map(p => (
-              <li key={p.id}>
-                <button
-                  className="cmr-hrow"
-                  onClick={() => navigate(`/care-manager/patients/${p.id}`)}
-                >
-                  <span className="cmr-hrow__avatar">{p.name?.[0]?.toUpperCase() ?? 'P'}</span>
-                  <span className="cmr-hrow__info">
-                    <span className="cmr-hrow__name">{p.name}</span>
-                    <span className="cmr-hrow__meta">
-                      {p.age}y · {timeAgo(p.lastActivityAt)}
+          <>
+            <ul className="cmr-hlist">
+              {highRiskPatients.map(p => (
+                <li key={p.id}>
+                  <button
+                    className="cmr-hrow"
+                    onClick={() => navigate(`/care-manager/patients/${p.id}`)}
+                  >
+                    <span className="cmr-hrow__avatar">{p.name?.[0]?.toUpperCase() ?? 'P'}</span>
+                    <span className="cmr-hrow__info">
+                      <span className="cmr-hrow__name">{p.name}</span>
+                      {p.riskScore !== null && (
+                        <span className="cmr-hrow__score">{Math.round(p.riskScore * 100)}%</span>
+                      )}
                     </span>
-                  </span>
-                  <RiskBadge score={p.riskScore} showScore />
-                </button>
-              </li>
-            ))}
-          </ul>
+                    <span className="cmr-hrow__when">{timeAgo(p.lastActivityAt)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              className="cmr-card__foot"
+              onClick={() => navigate('/care-manager/readmission?risk=high')}
+            >
+              View all high-risk patients →
+            </button>
+          </>
         )}
       </section>
 
       {/* ── 4. Upcoming Appointments ── */}
       <section className="cmr-card">
         <header className="cmr-card__head">
-          <h3 className="cmr-card__title">Appointments</h3>
-          <button className="cmr-card__link" onClick={() => navigate('/care-manager/post-discharge')}>View all</button>
+          <h3 className="cmr-card__title">Upcoming Appointments</h3>
+          <button className="cmr-card__link" onClick={() => navigate('/care-manager/post-discharge')}>View all →</button>
         </header>
 
-        <MiniCalendar appointments={appointments} />
-
         {loading || !enrichedAttempted ? (
-          <div className="cmr-skel" style={{ marginTop: 10 }}>
+          <div className="cmr-skel">
             <Skeleton height={36} /><Skeleton height={36} />
           </div>
         ) : nextAppts.length === 0 ? (
-          <p className="cmr-empty" style={{ marginTop: 10 }}>No scheduled appointments from backend.</p>
+          <ApptEmpty />
         ) : (
+          <>
+          <MiniCalendar appointments={appointments} />
           <ul className="cmr-list" style={{ marginTop: 10 }}>
             {nextAppts.map((a, i) => {
               const { time, day } = fmtDate(a.date);
@@ -291,6 +310,7 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
               );
             })}
           </ul>
+          </>
         )}
       </section>
 
@@ -382,6 +402,40 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
         </section>
       )}
 
+    </div>
+  );
+}
+
+/* ── Appointments empty state ────────────────────────────────────────────── */
+/**
+ * Shown when the post-discharge agents return no scheduled appointments.
+ * The date block reflects today's real date.
+ */
+function ApptEmpty() {
+  const now = new Date();
+  const month = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  const day = now.getDate();
+
+  return (
+    <div className="cmr-apptempty">
+      <span className="cmr-apptempty__date">
+        <span className="cmr-apptempty__mon">{month}</span>
+        <span className="cmr-apptempty__day">{day}</span>
+      </span>
+      <span className="cmr-apptempty__text">
+        <span className="cmr-apptempty__title">No upcoming appointments</span>
+        <span className="cmr-apptempty__sub">You're all caught up!</span>
+      </span>
+      <span className="cmr-apptempty__art" aria-hidden="true">
+        <svg width="44" height="40" viewBox="0 0 48 44" fill="none">
+          <rect x="7" y="9" width="30" height="28" rx="3.5" fill="#fdece4" stroke="#f2846b" strokeWidth="1.6" />
+          <path d="M7 17h30" stroke="#f2846b" strokeWidth="1.6" />
+          <path d="M15 6v6M29 6v6" stroke="#f2846b" strokeWidth="1.8" strokeLinecap="round" />
+          <rect x="13" y="22" width="6" height="5" rx="1.2" fill="#f2846b" opacity="0.55" />
+          <rect x="22" y="22" width="6" height="5" rx="1.2" fill="#f2846b" opacity="0.3" />
+          <rect x="13" y="29" width="6" height="4" rx="1.2" fill="#f2846b" opacity="0.3" />
+        </svg>
+      </span>
     </div>
   );
 }
