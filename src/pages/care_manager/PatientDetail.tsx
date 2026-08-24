@@ -1,20 +1,23 @@
 /**
- * CarePath — Patient detail + AI Readmission Prediction
- * Every figure on this screen comes from the backend record or model output.
+ * CarePath — Patient detail.
+ *
+ * Two-column workspace that fills the viewport beside the sidebar:
+ *   Left  — AI-assisted retrieval summary, typed out progressively, own scroll.
+ *   Right — spinner while the summary streams, then a PDF-style record sheet.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CareManagerLayout from '../../components/care_manager/CareManagerLayout';
-import RiskBadge, { riskFromScore } from '../../components/ui/RiskBadge';
+import RiskBadge from '../../components/ui/RiskBadge';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/States';
 import { useToast } from '../../components/ui/Toast';
 import { ehrService, type PatientDetail as PatientRecord } from '../../services/ehrService';
 import { predictionService, type ReadmissionDetails } from '../../services/predictionService';
 import { careManagerService, type PostDischargeStatus } from '../../services/careManagerService';
 import { toApiError } from '../../services/apiClient';
-
-interface RiskFactor { label: string; detail: string; severity: 'high' | 'medium' | 'info' }
+import PatientAISummary from '../../components/care_manager/PatientAISummary';
+import PatientSummaryDoc from '../../components/care_manager/PatientSummaryDoc';
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,20 +33,22 @@ export default function PatientDetailPage() {
   const [predictedAt, setPredictedAt] = useState<string | null>(null);
   const [modelVersion, setModelVersion] = useState<string | null>(null);
   const [predicting, setPredicting] = useState(false);
-  const [scoreMissing, setScoreMissing] = useState(false);
 
   const [postDischarge, setPostDischarge] = useState<PostDischargeStatus | null>(null);
+
+  /** Flips true when the left-hand summary has finished typing. */
+  const [streamDone, setStreamDone] = useState(false);
 
   // ── Load record + any existing prediction ──
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
+    setStreamDone(false);
     try {
       const detail = await ehrService.getById(Number(id));
       setRecord(detail);
 
-      // Latest stored predictions (may legitimately not exist yet)
       const [latest, pd] = await Promise.allSettled([
         predictionService.latest(detail.patient_id),
         careManagerService.postDischarge(detail.patient_id),
@@ -55,9 +60,6 @@ export default function PatientDetailPage() {
         setDetails((r.prediction_result ?? null) as ReadmissionDetails | null);
         setPredictedAt(r.predicted_at);
         setModelVersion(r.model_version);
-        setScoreMissing(false);
-      } else {
-        setScoreMissing(true);
       }
 
       if (pd.status === 'fulfilled') setPostDischarge(pd.value);
@@ -71,7 +73,7 @@ export default function PatientDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // ── Run the model ──
+  // ── Run the model, then restream the summary with the new score ──
   const runPredict = async () => {
     if (!record) return;
     setPredicting(true);
@@ -81,7 +83,7 @@ export default function PatientDetailPage() {
       setDetails(res.prediction_details ?? null);
       setPredictedAt(res.predicted_at);
       setModelVersion(res.model_version);
-      setScoreMissing(false);
+      setStreamDone(false);
       toast.success('Readmission prediction generated');
     } catch (err) {
       toast.error(toApiError(err).message);
@@ -90,348 +92,123 @@ export default function PatientDetailPage() {
     }
   };
 
-  // ── Factors observed in this patient's record ──
-  const factors = useMemo<RiskFactor[]>(() => {
-    if (!record) return [];
-    const out: RiskFactor[] = [];
-
-    const admissions = details?.previous_admissions_12m ?? record.previous_admissions_12m;
-    if (admissions > 0) {
-      out.push({
-        label: 'Previous admissions',
-        detail: `${admissions} in the last 12 months`,
-        severity: admissions >= 2 ? 'high' : 'medium',
-      });
-    }
-    if (record.previous_er_visits_12m > 0) {
-      out.push({
-        label: 'Emergency visits',
-        detail: `${record.previous_er_visits_12m} in the last 12 months`,
-        severity: record.previous_er_visits_12m >= 3 ? 'high' : 'medium',
-      });
-    }
-    if (record.prior_30_day_readmission_flag === 1) {
-      out.push({ label: 'Prior 30-day readmission', detail: 'Flagged on record', severity: 'high' });
-    }
-    const los = details?.length_of_stay_days ?? record.length_of_stay_days;
-    if (los) {
-      out.push({
-        label: 'Length of stay',
-        detail: `${los} day${los === 1 ? '' : 's'}`,
-        severity: los >= 7 ? 'medium' : 'info',
-      });
-    }
-    if (record.icu_stay_flag === 1 || details?.icu_stay) {
-      out.push({ label: 'ICU stay', detail: 'Recorded during index admission', severity: 'high' });
-    }
-
-    const chronic: string[] = [];
-    if (record.diabetes_flag) chronic.push('Diabetes');
-    if (record.heart_failure_flag) chronic.push('Heart failure');
-    if (record.copd_asthma_flag) chronic.push('COPD/Asthma');
-    if (record.ckd_flag) chronic.push('CKD');
-    if (record.cancer_flag) chronic.push('Cancer');
-    if (record.hypertension_flag) chronic.push('Hypertension');
-    if (record.dementia_flag) chronic.push('Dementia');
-    if (chronic.length > 0) {
-      out.push({
-        label: 'Chronic conditions',
-        detail: chronic.join(', '),
-        severity: chronic.length >= 3 ? 'high' : 'medium',
-      });
-    }
-
-    const cci = details?.comorbidity_index ?? record.charlson_comorbidity_index;
-    if (cci && cci > 0) {
-      out.push({
-        label: 'Comorbidity index',
-        detail: `Charlson score ${cci}`,
-        severity: cci >= 5 ? 'high' : 'medium',
-      });
-    }
-    if (record.polypharmacy_flag === 1) {
-      out.push({
-        label: 'Polypharmacy',
-        detail: `${record.active_medication_count} active medications`,
-        severity: 'medium',
-      });
-    }
-    if (record.missed_appointments_6m && record.missed_appointments_6m > 0) {
-      out.push({
-        label: 'Missed appointments',
-        detail: `${record.missed_appointments_6m} in the last 6 months`,
-        severity: 'medium',
-      });
-    }
-    return out;
-  }, [record, details]);
-
-  // ── Operational next steps, each tied to a fact on the record ──
-  const nextSteps = useMemo<string[]>(() => {
-    if (!record) return [];
-    const steps: string[] = [];
-    const followUpScheduled = details?.follow_up_scheduled ?? Boolean(record.follow_up_within_7_days_flag);
-
-    if (!followUpScheduled) steps.push('No follow-up is recorded within 7 days — schedule one.');
-    if (record.polypharmacy_flag === 1 || record.active_medication_count >= 5) {
-      steps.push(`Review the medication list (${record.active_medication_count} active).`);
-    }
-    if (record.medication_adherence_rate !== null && record.medication_adherence_rate !== undefined && record.medication_adherence_rate < 0.8) {
-      steps.push(`Adherence is recorded at ${Math.round(record.medication_adherence_rate * 100)}% — confirm the patient can follow the plan.`);
-    }
-    if (record.missed_appointments_6m && record.missed_appointments_6m > 0) {
-      steps.push('Confirm contact details and appointment reminders.');
-    }
-    if (postDischarge && !postDischarge.follow_up.is_scheduled) {
-      steps.push('The follow-up agent has no scheduled check-in — arrange outreach.');
-    }
-    if (postDischarge?.care_plan?.status === 'at_risk') {
-      steps.push('The care plan is flagged at risk — review open tasks.');
-    }
-    if (score !== null && score >= 0.7) {
-      steps.push('Risk is in the high band — prioritise this patient in your review queue.');
-    }
-    if (steps.length === 0) steps.push('No outstanding gaps found on this record.');
-    return steps;
-  }, [record, details, postDischarge, score]);
-
-  const pct = score !== null ? Math.round(score * 100) : null;
-  const level = riskFromScore(score);
-
   return (
     <CareManagerLayout breadcrumb="Patient Detail">
-      <button className="cmp-back" onClick={() => navigate('/care-manager/patients')}>
-        ← Back to patients
-      </button>
-
       {error ? (
         <ErrorState title="Unable to load this patient" message={error} onRetry={load} />
       ) : loading ? (
-        <div className="cmp-detailskel">
-          <Skeleton height={96} />
-          <Skeleton height={220} />
-          <Skeleton height={160} />
+        <div className="cmd-detailskel">
+          <Skeleton height={64} />
+          <Skeleton height={420} />
         </div>
       ) : !record ? (
         <EmptyState icon="🔍" title="Patient not found" message="This record may have been removed." />
       ) : (
-        <>
-          {/* ── Identity ── */}
-          <section className="cmd-idcard">
-            <span className="cmd-idcard__avatar">{record.name?.[0]?.toUpperCase() ?? 'P'}</span>
-            <div className="cmd-idcard__main">
-              <h1 className="cmd-idcard__name">{record.name}</h1>
-              <p className="cmd-idcard__meta">
+        <div className="cmd-work">
+          {/* ── Toolbar ── */}
+          <div className="cmd-work__bar">
+            <button className="cmd-work__back" onClick={() => navigate('/care-manager/patients')}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Patients
+            </button>
+
+            <span className="cmd-work__avatar">{record.name?.[0]?.toUpperCase() ?? 'P'}</span>
+            <div className="cmd-work__id">
+              <h1 className="cmd-work__name">{record.name}</h1>
+              <p className="cmd-work__meta">
                 <span className="cmp-mono">{record.mrn}</span>
-                <span aria-hidden="true">·</span>
-                <span>{record.patient_id}</span>
                 <span aria-hidden="true">·</span>
                 <span>Age {record.age}</span>
                 <span aria-hidden="true">·</span>
-                <span className="cmd-idcard__cap">{record.gender}</span>
-              </p>
-              <p className="cmd-idcard__tags">
-                <span className="cmd-tag">{record.insurance_type?.replace('_', ' ')}</span>
-                {record.admission_type && <span className="cmd-tag">{record.admission_type} admission</span>}
-                {record.discharge_destination && <span className="cmd-tag">Discharge: {record.discharge_destination}</span>}
-                <span className={`cmd-tag ${record.is_active === 1 ? 'cmd-tag--ok' : 'cmd-tag--off'}`}>
-                  {record.is_active === 1 ? 'Active' : 'Inactive'}
-                </span>
+                <span className="cmd-work__cap">{record.gender}</span>
               </p>
             </div>
-            <div className="cmd-idcard__actions">
-              <button className="cp-btn cp-btn--ghost" onClick={() => navigate('/care-manager/patients')}>
-                Manage record
-              </button>
-            </div>
-          </section>
 
-          {/* ── AI prediction ── */}
-          <section className="cmp-panel">
-            <header className="cmp-panel__head">
-              <div>
-                <h2 className="cmp-panel__title">AI Readmission Prediction</h2>
-                <p className="cmp-panel__sub">
-                  30-day readmission risk
-                  {modelVersion ? ` · model v${modelVersion}` : ''}
-                  {predictedAt ? ` · ${new Date(predictedAt).toLocaleString()}` : ''}
-                </p>
-              </div>
-              <button className="cp-btn cp-btn--primary" onClick={runPredict} disabled={predicting}>
-                {predicting ? <><span className="cp-btn__spinner" /> Running model…</> : score !== null ? 'Re-run prediction' : 'Run prediction'}
-              </button>
-            </header>
+            {score !== null && <RiskBadge score={score} showScore />}
 
-            {score === null ? (
-              <EmptyState
-                icon="🤖"
-                title={scoreMissing ? 'No prediction yet' : 'Prediction unavailable'}
-                message="Run the model to generate a readmission risk score from this patient's current record."
-                actionLabel={predicting ? undefined : 'Run prediction'}
-                onAction={predicting ? undefined : runPredict}
-              />
-            ) : (
-              <div className="cmd-predict">
-                {/* Gauge */}
-                <div className="cmd-gauge">
-                  <RiskDial pct={pct ?? 0} level={level} />
-                  <div className="cmd-gauge__caption">
-                    <RiskBadge score={score} />
-                    <span className="cmd-gauge__note">
-                      {details?.features_used ? `${details.features_used} features` : 'Model output'}
-                    </span>
-                  </div>
-                </div>
+            {/* Update button — navigates to full edit form pre-filled with current data */}
+            <button
+              className="cp-btn cp-btn--ghost cmd-work__run"
+              onClick={() => navigate(`/care-manager/patients/${id}/edit`)}
+              aria-label="Edit patient record"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M11.5 2.5l2 2-8 8H3.5v-2l8-8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Update
+            </button>
 
-                {/* Factors */}
-                <div className="cmd-block">
-                  <h3 className="cmd-block__title">Factors on this record</h3>
-                  {factors.length === 0 ? (
-                    <p className="cmp-muted">No elevated factors recorded.</p>
-                  ) : (
-                    <ul className="cmd-factors">
-                      {factors.map((f) => (
-                        <li key={f.label} className={`cmd-factor cmd-factor--${f.severity}`}>
-                          <span className="cmd-factor__dot" aria-hidden="true" />
-                          <span className="cmd-factor__text">
-                            <strong>{f.label}</strong>
-                            <span>{f.detail}</span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {/* Next steps */}
-                <div className="cmd-block">
-                  <h3 className="cmd-block__title">Suggested next steps</h3>
-                  <ul className="cmd-steps">
-                    {nextSteps.map((s, i) => (
-                      <li key={i}>
-                        <span className="cmd-steps__mark" aria-hidden="true">→</span>
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="cmd-disclaimer">
-                    Operational prompts derived from this record. They are not clinical advice.
-                  </p>
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* ── Clinical snapshot ── */}
-          <div className="cmp-analytics cmp-analytics--two">
-            <section className="cmp-card">
-              <header className="cmp-card__head"><h3 className="cmp-card__title">Clinical snapshot</h3></header>
-              <dl className="cmd-dl">
-                <Row label="BMI" value={record.bmi} />
-                <Row label="Hemoglobin" value={record.hemoglobin} suffix=" g/dL" />
-                <Row label="Creatinine" value={record.creatinine} suffix=" mg/dL" />
-                <Row label="Glucose" value={record.glucose} suffix=" mg/dL" />
-                <Row label="WBC count" value={record.wbc_count} />
-                <Row label="Blood pressure" value={record.systolic_bp && record.diastolic_bp ? `${record.systolic_bp}/${record.diastolic_bp}` : null} />
-                <Row label="Heart rate" value={record.heart_rate} suffix=" bpm" />
-                <Row label="SpO₂" value={record.spo2} suffix="%" />
-              </dl>
-            </section>
-
-            <section className="cmp-card">
-              <header className="cmp-card__head"><h3 className="cmp-card__title">Post-discharge agents</h3></header>
-              {!postDischarge ? (
-                <EmptyState compact icon="📡" title="No agent data" message="The post-discharge module returned nothing for this patient." />
-              ) : (
-                <div className="cmd-agents">
-                  <div className="cmd-agent">
-                    <span className="cmd-agent__label">Care plan</span>
-                    <span className={`cmd-agent__pill cmd-agent__pill--${postDischarge.care_plan.status === 'at_risk' ? 'warn' : 'ok'}`}>
-                      {postDischarge.care_plan.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                  <div className="cmd-agent">
-                    <span className="cmd-agent__label">Follow-up</span>
-                    <span className={`cmd-agent__pill cmd-agent__pill--${postDischarge.follow_up.is_scheduled ? 'ok' : 'warn'}`}>
-                      {postDischarge.follow_up.is_scheduled ? 'Scheduled' : 'Not scheduled'}
-                    </span>
-                  </div>
-                  <div className="cmd-agent">
-                    <span className="cmd-agent__label">Appointment</span>
-                    <span className={`cmd-agent__pill cmd-agent__pill--${postDischarge.appointment.is_appointment ? 'ok' : 'off'}`}>
-                      {postDischarge.appointment.is_appointment
-                        ? (postDischarge.appointment.date ?? 'Booked')
-                        : 'None'}
-                    </span>
-                  </div>
-
-                  {postDischarge.care_plan.tasks.length > 0 && (
-                    <ul className="cmd-tasklist">
-                      {postDischarge.care_plan.tasks.map((t, i) => (
-                        <li key={i} className={t.status === 'completed' ? 'cmd-tasklist--done' : ''}>
-                          <span aria-hidden="true">{t.status === 'completed' ? '✓' : '○'}</span> {t.task}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </section>
+            <button className="cp-btn cp-btn--primary cmd-work__run" onClick={runPredict} disabled={predicting}>
+              {predicting ? <><span className="cp-btn__spinner" /> Running…</> : score !== null ? 'Re-run prediction' : 'Run prediction'}
+            </button>
           </div>
 
-          {record.clinical_notes && (
-            <section className="cmp-card">
-              <header className="cmp-card__head"><h3 className="cmp-card__title">Clinical notes</h3></header>
-              <p className="cmd-notes">{record.clinical_notes}</p>
-            </section>
-          )}
-        </>
+          {/* ── Split workspace ── */}
+          <div className="cmd-work__split">
+            {/* Left: streaming summary, own scroll */}
+            <div className="cmd-work__left">
+              <PatientAISummary
+                record={record}
+                score={score}
+                details={details}
+                postDischarge={postDischarge}
+                loading={false}
+                onDone={() => setStreamDone(true)}
+              />
+            </div>
+
+            {/* Right: spinner until the summary finishes, then the record sheet */}
+            <div className="cmd-work__right">
+              {streamDone ? (
+                <PatientSummaryDoc
+                  record={record}
+                  score={score}
+                  predictedAt={predictedAt}
+                  modelVersion={modelVersion}
+                  postDischarge={postDischarge}
+                />
+              ) : (
+                <DocPending />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </CareManagerLayout>
   );
 }
 
-function Row({ label, value, suffix = '' }: { label: string; value: number | string | null | undefined; suffix?: string }) {
-  const empty = value === null || value === undefined || value === '';
+/**
+ * Placeholder shown on the right while the summary is still streaming.
+ * A scan line sweeps top-to-bottom on a loop to signal the document is
+ * being read/assembled, over a ghost outline of the sheet.
+ */
+function DocPending() {
   return (
-    <div className="cmd-dl__row">
-      <dt>{label}</dt>
-      <dd>{empty ? <span className="cmp-metric-na">N/A</span> : <>{value}{suffix}</>}</dd>
-    </div>
-  );
-}
+    <div className="cmd-pending" role="status" aria-live="polite">
+      {/* Looping scan line across the whole pending sheet */}
+      <span className="cmd-pending__scan" aria-hidden="true" />
 
-/** Circular risk dial drawn with SVG so it scales cleanly. */
-function RiskDial({ pct, level }: { pct: number; level: string }) {
-  const size = 168;
-  const stroke = 14;
-  const r = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - Math.min(100, Math.max(0, pct)) / 100);
+      <div className="cmd-pending__spinner" aria-hidden="true" />
+      <p className="cmd-pending__title">Scanning record</p>
+      <p className="cmd-pending__sub">The document builds once the summary finishes.</p>
 
-  const color = level === 'high' ? '#e06a4f' : level === 'medium' ? '#f5a08a' : '#7cc4a4';
-
-  return (
-    <div className="cmd-dial" role="img" aria-label={`Readmission risk ${pct} percent, ${level}`}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(242,132,107,0.14)" strokeWidth={stroke} />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{ transition: 'stroke-dashoffset 600ms ease' }}
-        />
-      </svg>
-      <div className="cmd-dial__center">
-        <strong>{pct}%</strong>
-        <span>{level === 'high' ? 'High risk' : level === 'medium' ? 'Medium risk' : 'Low risk'}</span>
+      {/* Ghost outline of the sheet being assembled */}
+      <div className="cmd-pending__ghost" aria-hidden="true">
+        <span className="cmd-pending__bar cmd-pending__bar--title" />
+        <span className="cmd-pending__bar" />
+        <span className="cmd-pending__bar cmd-pending__bar--short" />
+        <span className="cmd-pending__gap" />
+        <span className="cmd-pending__bar" />
+        <span className="cmd-pending__bar cmd-pending__bar--short" />
+        <span className="cmd-pending__gap" />
+        <span className="cmd-pending__bar" />
+        <span className="cmd-pending__bar cmd-pending__bar--short" />
+        <span className="cmd-pending__gap" />
+        <span className="cmd-pending__bar" />
+        <span className="cmd-pending__bar cmd-pending__bar--short" />
       </div>
     </div>
   );

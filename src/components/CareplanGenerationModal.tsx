@@ -283,7 +283,145 @@ export default function CareplanGenerationModal({
 
         {phase === 'generating' && (
           <div className="careplan-modal__body">
-            {/* Chain of Thought Header */}
+            {/* Horizontal Pipeline Visualization */}
+            <div className="pipeline-container">
+              <svg
+                viewBox="0 0 900 100"
+                width="100%"
+                height="auto"
+                style={{ maxWidth: '900px', display: 'block', margin: '0 auto' }}
+                aria-label="Care Plan Agent Pipeline"
+                role="img"
+              >
+                {/* Edges between nodes */}
+                {steps.map((step, i) => {
+                  if (i === steps.length - 1) return null;
+                  const fromX = 20 + i * 230 + 180;
+                  const toX = 20 + (i + 1) * 230;
+                  const y = 35;
+
+                  const nextStep = steps[i + 1];
+                  const isCompleted = nextStep.status === 'complete';
+                  const isActive = nextStep.status === 'active';
+
+                  return (
+                    <g key={`edge-${i}`}>
+                      <line
+                        x1={fromX}
+                        y1={y}
+                        x2={toX}
+                        y2={y}
+                        stroke={isCompleted ? '#f2846b' : '#d1d5db'}
+                        strokeWidth={isCompleted ? 2 : 1.5}
+                        strokeDasharray={isCompleted || isActive ? 'none' : '5,5'}
+                        strokeLinecap="round"
+                      />
+                      {isActive && (
+                        <circle fill="#f2846b" r="4">
+                          <animate attributeName="cx" from={fromX} to={toX} dur="2s" repeatCount="indefinite" />
+                          <animateMotion dur="2s" repeatCount="indefinite">
+                            <mpath xlinkHref={`#path-${i}`} />
+                          </animateMotion>
+                          <animate attributeName="cy" values={`${y};${y};${y}`} dur="2s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+                      <circle cx={fromX} cy={y} r="3.5" fill={isCompleted || isActive ? '#2d1a14' : '#9ca3af'} />
+                      <circle cx={toX} cy={y} r="3.5" fill={isCompleted ? '#2d1a14' : '#9ca3af'} />
+                    </g>
+                  );
+                })}
+
+                {/* Nodes */}
+                {steps.map((step, i) => {
+                  const x = 20 + i * 230;
+                  const y = 15;
+                  const nodeW = 180;
+                  const nodeH = 40;
+
+                  let statusLabel = 'Pending';
+                  let statusColor = '#9ca3af';
+                  if (step.status === 'complete') {
+                    statusLabel = 'Completed';
+                    statusColor = '#10b981';
+                  } else if (step.status === 'active') {
+                    statusLabel = 'In Progress';
+                    statusColor = '#f2846b';
+                  }
+
+                  return (
+                    <g key={step.id}>
+                      {/* Node box */}
+                      <rect
+                        x={x}
+                        y={y}
+                        width={nodeW}
+                        height={nodeH}
+                        rx={10}
+                        fill={step.status === 'complete' ? 'rgba(242,132,107,0.06)' : 'white'}
+                        stroke={
+                          step.status === 'active' ? '#f2846b' : step.status === 'complete' ? '#f2846b' : '#e5e7eb'
+                        }
+                        strokeWidth={step.status === 'active' ? 2 : 1.2}
+                      />
+
+                      {/* Status indicator dot */}
+                      {step.status === 'complete' && (
+                        <circle cx={x + 16} cy={y + 20} r={6} fill="#f2846b" />
+                      )}
+
+                      {step.status === 'active' && (
+                        <circle
+                          cx={x + 16}
+                          cy={y + 20}
+                          r={6}
+                          fill="none"
+                          stroke="#f2846b"
+                          strokeWidth="2"
+                          opacity="0.6"
+                        >
+                          <animate attributeName="r" values="4;8;4" dur="1.5s" repeatCount="indefinite" />
+                          <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite" />
+                        </circle>
+                      )}
+
+                      {step.status === 'pending' && (
+                        <circle cx={x + 16} cy={y + 20} r={4} fill="#d1d5db" />
+                      )}
+
+                      {/* Stage name */}
+                      <text
+                        x={x + nodeW / 2 + 6}
+                        y={y + 16}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={step.status === 'active' ? '#e06a4f' : step.status === 'complete' ? '#2d1a14' : '#6b7280'}
+                        fontSize="11"
+                        fontWeight={step.status === 'active' ? '700' : '500'}
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                      >
+                        {step.title.replace(' Agent', '')}
+                      </text>
+
+                      {/* Status label */}
+                      <text
+                        x={x + nodeW / 2 + 6}
+                        y={y + 32}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill={statusColor}
+                        fontSize="9"
+                        fontWeight="500"
+                        fontFamily="system-ui, -apple-system, sans-serif"
+                      >
+                        {statusLabel}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* Collapsible Reasoning Panel */}
             <div className="cot-header" onClick={() => setIsExpanded(!isExpanded)}>
               <svg className="cot-icon" width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path d="M10 3.5c3.59 0 6.5 2.46 6.5 5.5s-2.91 5.5-6.5 5.5a7.5 7.5 0 01-2.8-.55L3.5 15.5l1.05-3.2A4.9 4.9 0 013.5 9c0-3.04 2.91-5.5 6.5-5.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -291,62 +429,31 @@ export default function CareplanGenerationModal({
                 <circle cx="10" cy="9" r="0.75" fill="currentColor"/>
                 <circle cx="13" cy="9" r="0.75" fill="currentColor"/>
               </svg>
-              <span className="cot-title">Agent Workflow</span>
-              <svg className={`cot-chevron ${isExpanded ? 'cot-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <span className="cot-title">Thought for {steps.filter(s => s.status === 'complete').length} steps</span>
+              <svg className={`cot-chevron ${isExpanded ? 'cot-chevron--open' : ''}`} width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
 
-            {/* Collapsible Content */}
+            {/* Expanded reasoning details */}
             {isExpanded && (
               <div className="cot-content">
-                {steps.map((step, index) => (
-                  <div key={step.id} className={`cot-step cot-step--${step.status}`}>
-                    <div className="cot-step__line-wrapper">
-                      <div className="cot-step__icon">
-                        {step.status === 'complete' && (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M10 3L4.5 8.5 2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                        {step.status === 'active' && (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                            <path d="M6 3v3l2 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                          </svg>
-                        )}
-                        {step.status === 'pending' && (
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                          </svg>
+                {steps.map((step) => (
+                  <div key={step.id}>
+                    {(step.status === 'active' || step.status === 'complete') && (
+                      <div className="reasoning-step">
+                        <p>
+                          <strong>{step.title}:</strong> {step.description}
+                        </p>
+                        {step.details && step.details.length > 0 && (
+                          <ul>
+                            {step.details.map((detail, idx) => (
+                              <li key={idx}>{detail}</li>
+                            ))}
+                          </ul>
                         )}
                       </div>
-                      {index < steps.length - 1 && <div className="cot-step__line" />}
-                    </div>
-                    
-                    <div className="cot-step__content">
-                      <div className="cot-step__header">
-                        <span className="cot-step__title">{step.title}</span>
-                        {step.status === 'complete' && (
-                          <span className="cot-step__badge cot-step__badge--complete">Complete</span>
-                        )}
-                        {step.status === 'active' && (
-                          <span className="cot-step__badge cot-step__badge--active">Working...</span>
-                        )}
-                      </div>
-                      
-                      {(step.status === 'active' || step.status === 'complete') && (
-                        <div className="cot-step__description">{step.description}</div>
-                      )}
-                      
-                      {step.details && step.details.length > 0 && (
-                        <div className="cot-step__details">
-                          {step.details.map((detail, idx) => (
-                            <span key={idx} className="cot-detail-badge">{detail}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 ))}
                 <div ref={logsEndRef} />
@@ -560,6 +667,14 @@ export default function CareplanGenerationModal({
           flex: 1;
         }
 
+        /* Pipeline Container */
+        .pipeline-container {
+          width: 100%;
+          padding: 20px 0;
+          margin-bottom: 24px;
+          overflow-x: auto;
+        }
+
         /* Chain of Thought Header */
         .cot-header {
           display: flex;
@@ -570,7 +685,7 @@ export default function CareplanGenerationModal({
           border-radius: 10px;
           cursor: pointer;
           transition: all 0.2s ease;
-          margin-bottom: 20px;
+          margin-bottom: 4px;
           border: 1.5px solid #f2d4ca;
         }
 
@@ -592,153 +707,65 @@ export default function CareplanGenerationModal({
 
         .cot-chevron {
           color: #a8a8a8;
-          transition: transform 0.3s ease;
+          transition: transform 0.2s ease;
         }
 
         .cot-chevron--open {
-          transform: rotate(90deg);
+          transform: rotate(180deg);
         }
 
         /* Chain of Thought Content */
         .cot-content {
-          padding: 0 4px;
+          padding: 16px 18px;
+          background: #f9fafb;
+          border-radius: 0 0 10px 10px;
+          border: 1.5px solid #f2d4ca;
+          border-top: none;
           animation: slideDown 0.3s ease;
+          margin-bottom: 20px;
         }
 
         @keyframes slideDown {
           from {
             opacity: 0;
-            transform: translateY(-10px);
+            max-height: 0;
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            max-height: 1000px;
           }
         }
 
-        /* Individual Step */
-        .cot-step {
-          display: flex;
-          gap: 12px;
-          padding-bottom: 24px;
+        .reasoning-step {
+          padding: 12px 0;
+          border-bottom: 1px solid #e5e7eb;
         }
 
-        .cot-step:last-child {
-          padding-bottom: 0;
+        .reasoning-step:last-child {
+          border-bottom: none;
         }
 
-        .cot-step__line-wrapper {
-          position: relative;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-
-        .cot-step__icon {
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f5f5f5;
-          color: #d9d4d1;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        .cot-step--active .cot-step__icon {
-          background: #ffeee7;
-          color: #f2846b;
-          animation: pulse 2s ease-in-out infinite;
-        }
-
-        .cot-step--complete .cot-step__icon {
-          background: #e8f5f0;
-          color: #7cc4a4;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.6;
-          }
-        }
-
-        .cot-step__line {
-          width: 2px;
-          flex: 1;
-          background: #f2d4ca;
-          margin-top: 4px;
-          min-height: 20px;
-        }
-
-        .cot-step--complete .cot-step__line {
-          background: #c9e4d9;
-        }
-
-        .cot-step--active .cot-step__line {
-          background: linear-gradient(180deg, #f5a08a 0%, #f2d4ca 100%);
-        }
-
-        .cot-step__content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .cot-step__header {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 6px;
-        }
-
-        .cot-step__title {
-          font-weight: 600;
+        .reasoning-step p {
+          margin: 0 0 8px 0;
           color: #374151;
-          font-size: 0.9375rem;
+          font-size: 0.875rem;
+          line-height: 1.6;
         }
 
-        .cot-step__badge {
-          font-size: 0.75rem;
-          padding: 2px 8px;
-          border-radius: 8px;
+        .reasoning-step strong {
+          color: #111827;
           font-weight: 600;
         }
 
-        .cot-step__badge--complete {
-          background: #e8f5f0;
-          color: #4d9d7b;
+        .reasoning-step ul {
+          margin: 8px 0 0 0;
+          padding-left: 20px;
         }
 
-        .cot-step__badge--active {
-          background: #ffeee7;
-          color: #f2846b;
-        }
-
-        .cot-step__description {
+        .reasoning-step li {
           color: #6b7280;
-          font-size: 0.875rem;
-          line-height: 1.5;
-          margin-bottom: 8px;
-        }
-
-        .cot-step__details {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-          margin-top: 8px;
-        }
-
-        .cot-detail-badge {
-          background: #f3f4f6;
-          color: #6b7280;
-          font-size: 0.75rem;
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-weight: 500;
+          font-size: 0.8125rem;
+          padding: 2px 0;
         }
 
         /* Status Bar */

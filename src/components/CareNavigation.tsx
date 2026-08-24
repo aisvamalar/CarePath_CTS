@@ -223,6 +223,9 @@ export default function CareNavigation({
   ]);
   const [agentMsg, setAgentMsg]     = useState('Finding the best care option for you…');
   const [agentsDone, setAgentsDone] = useState(false);
+  const [reasoningExpanded, setReasoningExpanded] = useState(true);
+  const [startTime] = useState(Date.now());
+  const [duration, setDuration] = useState(0);
 
   // booking
   const [nav, setNav]               = useState<NavigateResponse | null>(null);
@@ -307,9 +310,13 @@ export default function CareNavigation({
       setAgentMsg('Matching appointment availability…');
       await new Promise(r => setTimeout(r, 600));
       setAgent('appt', 'done'); setAgentMsg('Your care options are ready');
+      setDuration(Math.ceil((Date.now() - startTime) / 1000));
       setAgentsDone(true); setNav(res); setVisitType(res.decision.destination); setStep(2);
+      // Auto-collapse reasoning after 1 second
+      setTimeout(() => setReasoningExpanded(false), 1000);
     } catch (err) {
       setAgent('care', 'failed');
+      setDuration(Math.ceil((Date.now() - startTime) / 1000));
       setError(err instanceof Error && err.message === 'no-mrn'
         ? 'Could not find your medical record number.'
         : toApiError(err).message);
@@ -395,26 +402,213 @@ export default function CareNavigation({
             <span className="cn3-agents__spark">🐾</span>
             <span className="cn3-agents__title">AI Agents are analyzing your responses…</span>
           </div>
-          <div className="cn3-agents__track">
-            {agents.map((a, i) => (
-              <div key={a.id} className="cn3-agent-wrap">
-                <div className={`cn3-agent cn3-agent--${a.status}`}>{a.icon}</div>
-                <div className="cn3-agent__label">{a.label}<br />{a.sub}</div>
-                <div className={`cn3-agent__stat cn3-agent__stat--${a.status}`}>
-                  {a.status === 'done'    && 'Completed'}
-                  {a.status === 'running' && <><span className="cn3-dot"/><span className="cn3-dot cn3-dot--2"/><span className="cn3-dot cn3-dot--3"/> Progres</>}
-                  {a.status === 'pending' && 'Pending'}
-                  {a.status === 'failed'  && '! Failed'}
-                </div>
-                {i < agents.length - 1 && (
-                  <div className={`cn3-connector ${agents[i].status === 'done' ? 'cn3-connector--done' : ''}`}>
-                    <div className="cn3-connector__line"/>
-                    <div className={`cn3-connector__dot ${agents[i].status === 'done' ? 'cn3-connector__dot--done' : ''}`}/>
+          
+          {/* Horizontal SVG Pipeline */}
+          <div className="cn3-pipeline-svg-container">
+            <svg
+              viewBox="0 0 880 100"
+              width="100%"
+              height="auto"
+              style={{ maxWidth: '880px', display: 'block', margin: '0 auto' }}
+              aria-label="Agent workflow pipeline"
+              role="img"
+            >
+              {/* Edges between nodes */}
+              {agents.map((agent, i) => {
+                if (i === agents.length - 1) return null;
+                const fromX = 20 + i * 220 + 170;
+                const toX = 20 + (i + 1) * 220;
+                const y = 35;
+
+                const nextAgent = agents[i + 1];
+                const isCompleted = nextAgent.status === 'done';
+                const isActive = nextAgent.status === 'running';
+
+                return (
+                  <g key={`edge-${i}`}>
+                    <line
+                      x1={fromX}
+                      y1={y}
+                      x2={toX}
+                      y2={y}
+                      stroke={isCompleted ? '#f2846b' : '#d1d5db'}
+                      strokeWidth={isCompleted ? 2 : 1.5}
+                      strokeDasharray={isCompleted || isActive ? 'none' : '5,5'}
+                      strokeLinecap="round"
+                    />
+                    {isActive && (
+                      <circle fill="#f2846b" r="4" cy={y}>
+                        <animate attributeName="cx" from={fromX} to={toX} dur="2s" repeatCount="indefinite" />
+                      </circle>
+                    )}
+                    <circle cx={fromX} cy={y} r="3.5" fill={isCompleted || isActive ? '#2d1a14' : '#9ca3af'} />
+                    <circle cx={toX} cy={y} r="3.5" fill={isCompleted ? '#2d1a14' : '#9ca3af'} />
+                  </g>
+                );
+              })}
+
+              {/* Nodes */}
+              {agents.map((agent, i) => {
+                const x = 20 + i * 220;
+                const y = 15;
+                const nodeW = 170;
+                const nodeH = 40;
+
+                let statusLabel = 'Pending';
+                let statusColor = '#9ca3af';
+                if (agent.status === 'done') {
+                  statusLabel = 'Completed';
+                  statusColor = '#10b981';
+                } else if (agent.status === 'running') {
+                  statusLabel = 'In Progress';
+                  statusColor = '#f2846b';
+                }
+
+                return (
+                  <g key={agent.id}>
+                    {/* Node box */}
+                    <rect
+                      x={x}
+                      y={y}
+                      width={nodeW}
+                      height={nodeH}
+                      rx={10}
+                      fill={agent.status === 'done' ? 'rgba(242,132,107,0.06)' : 'white'}
+                      stroke={
+                        agent.status === 'running' ? '#f2846b' : agent.status === 'done' ? '#f2846b' : '#e5e7eb'
+                      }
+                      strokeWidth={agent.status === 'running' ? 2 : 1.2}
+                    />
+
+                    {/* Status indicator dot */}
+                    {agent.status === 'done' && (
+                      <circle cx={x + 16} cy={y + 20} r={6} fill="#f2846b" />
+                    )}
+
+                    {agent.status === 'running' && (
+                      <circle
+                        cx={x + 16}
+                        cy={y + 20}
+                        r={6}
+                        fill="none"
+                        stroke="#f2846b"
+                        strokeWidth="2"
+                        opacity="0.6"
+                      >
+                        <animate attributeName="r" values="4;8;4" dur="1.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite" />
+                      </circle>
+                    )}
+
+                    {agent.status === 'pending' && (
+                      <circle cx={x + 16} cy={y + 20} r={4} fill="#d1d5db" />
+                    )}
+
+                    {/* Stage name */}
+                    <text
+                      x={x + nodeW / 2 + 6}
+                      y={y + 14}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill={agent.status === 'running' ? '#e06a4f' : agent.status === 'done' ? '#2d1a14' : '#6b7280'}
+                      fontSize="11"
+                      fontWeight={agent.status === 'running' ? '700' : '500'}
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {agent.label}
+                    </text>
+
+                    {/* Subtitle */}
+                    <text
+                      x={x + nodeW / 2 + 6}
+                      y={y + 26}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill={agent.status === 'running' ? '#f2846b' : agent.status === 'done' ? '#6b7280' : '#9ca3af'}
+                      fontSize="9"
+                      fontWeight="500"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {agent.sub}
+                    </text>
+
+                    {/* Status label */}
+                    <text
+                      x={x + nodeW / 2 + 6}
+                      y={y + 38}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill={statusColor}
+                      fontSize="8"
+                      fontWeight="500"
+                      fontFamily="system-ui, -apple-system, sans-serif"
+                    >
+                      {statusLabel}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* Collapsible Reasoning Panel */}
+          <div className="cn3-reasoning-panel">
+            <button 
+              className="cn3-reasoning-trigger" 
+              onClick={() => setReasoningExpanded(!reasoningExpanded)}
+              aria-expanded={reasoningExpanded}
+            >
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className="cn3-reasoning-icon">
+                <path d="M10 3.5c3.59 0 6.5 2.46 6.5 5.5s-2.91 5.5-6.5 5.5a7.5 7.5 0 01-2.8-.55L3.5 15.5l1.05-3.2A4.9 4.9 0 013.5 9c0-3.04 2.91-5.5 6.5-5.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="7" cy="9" r="0.75" fill="currentColor"/>
+                <circle cx="10" cy="9" r="0.75" fill="currentColor"/>
+                <circle cx="13" cy="9" r="0.75" fill="currentColor"/>
+              </svg>
+              <span className="cn3-reasoning-label">
+                {agentsDone && duration > 0 
+                  ? `Thought for ${duration} second${duration === 1 ? '' : 's'}` 
+                  : 'Analyzing…'}
+              </span>
+              <svg 
+                className={`cn3-reasoning-chevron ${reasoningExpanded ? 'cn3-reasoning-chevron--open' : ''}`} 
+                width="14" 
+                height="14" 
+                viewBox="0 0 14 14" 
+                fill="none"
+              >
+                <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {reasoningExpanded && (
+              <div className="cn3-reasoning-content">
+                {agents.map((agent) => (
+                  (agent.status === 'done' || agent.status === 'running') && (
+                    <div key={agent.id} className="cn3-reasoning-step">
+                      <p>
+                        <strong>{agent.label} {agent.sub}:</strong>{' '}
+                        {agent.status === 'done' 
+                          ? `${agent.label === 'Symptom' ? 'Analyzed your symptoms and medical history' : 
+                             agent.label === 'Risk' ? 'Evaluated emergency risk factors and safety indicators' :
+                             agent.label === 'Care' ? 'Identified optimal care setting based on clinical assessment' :
+                             'Matched you with available providers and appointment slots'}`
+                          : 'Processing...'}
+                      </p>
+                    </div>
+                  )
+                ))}
+                {agentsDone && nav && (
+                  <div className="cn3-reasoning-step">
+                    <p>
+                      <strong>Decision:</strong> Based on your symptoms and risk assessment, we recommend <strong>{CARE_LABEL[nav.decision.destination] ?? nav.decision.destination}</strong>.
+                      {nav.decision.explanation && ` ${nav.decision.explanation}`}
+                    </p>
                   </div>
                 )}
               </div>
-            ))}
+            )}
           </div>
+
           <div className="cn3-progress"><div className="cn3-progress__bar" style={{ width: `${progress}%` }}/></div>
           <p className="cn3-agents__msg">🐾 {agentMsg}</p>
         </div>

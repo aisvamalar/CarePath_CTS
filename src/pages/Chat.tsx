@@ -7,6 +7,7 @@ import SafetyChecklist from '../components/SafetyChecklist';
 import SmartSafetyQuestions from '../components/SmartSafetyQuestions';
 import VerdictCard from '../components/VerdictCard';
 import CareNavigation from '../components/CareNavigation';
+import AgentReasoning from '../components/ai/AgentReasoning';
 import { useApp } from '../context/AppContext';
 import { intakeAPI, safetyAPI, chatAPI } from '../services/api';
 import type { RedFlagsPayload, IntakeFeatures, SafetyEvaluationResponse } from '../services/api';
@@ -25,6 +26,10 @@ export default function Chat() {
   const [safetyLoading, setSafetyLoading] = useState(false);
   const [sidebarDrawerOpen, setSidebarDrawerOpen] = useState(false);
   const [useSmartSafety] = useState(true); // Toggle between smart and full checklist
+  // How long the agent workflow (safety engine + ED-avoidability model) took per conversation,
+  // captured once so the Reasoning panel keeps showing "Thought for N seconds" after we
+  // move from the safety phase into the verdict phase.
+  const [reasoningDurations, setReasoningDurations] = useState<Record<string, number>>({});
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -204,11 +209,16 @@ export default function Chat() {
       setError('');
       dispatch({ type: 'SET_RED_FLAGS', payload: { conversationId: convId, redFlags: flags } });
 
+      const startedAt = Date.now();
       try {
         await safetyAPI.submitRedFlags(sessionId, flags);
         // The backend now runs the avoidable-ED model inside /evaluate and returns the
         // pathway (decision + risk + care plan) embedded in the response.
         const evalResult = await safetyAPI.evaluate(sessionId);
+        setReasoningDurations((prev) => ({
+          ...prev,
+          [convId]: Math.max(1, Math.ceil((Date.now() - startedAt) / 1000)),
+        }));
         dispatch({ type: 'SET_SAFETY_RESULT', payload: { conversationId: convId, result: evalResult } });
         dispatch({ type: 'SET_CONVERSATION_PHASE', payload: { conversationId: convId, phase: 'verdict' } });
       } catch {
@@ -249,6 +259,16 @@ export default function Chat() {
               <MessageBubble key={m.id} message={m} />
             ))}
           </div>
+
+          {/* Agent workflow trace — collapsed "Thought for N seconds" summary,
+              expandable to show what the safety engine / ED model checked. */}
+          <AgentReasoning
+            isStreaming={false}
+            redFlags={activeConversation.redFlags}
+            intakeFeatures={activeConversation.intakeFeatures}
+            safetyResult={activeConversation.safetyResult}
+            duration={reasoningDurations[activeConversation.id]}
+          />
 
           {/* Verdict appears as a bot-side card continuing the conversation */}
           <VerdictCard
@@ -296,7 +316,18 @@ export default function Chat() {
           ) : (
             <SafetyChecklist onSubmit={handleSafetySubmit} loading={safetyLoading} />
           )}
-          
+
+          {/* Agent workflow trace — appears right after the checklist while the
+              safety rule engine + ED-avoidability model are running. */}
+          {safetyLoading && (
+            <AgentReasoning
+              isStreaming={true}
+              redFlags={activeConversation.redFlags}
+              intakeFeatures={activeConversation.intakeFeatures}
+              safetyResult={null}
+            />
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       );

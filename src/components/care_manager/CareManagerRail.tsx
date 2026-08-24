@@ -1,130 +1,213 @@
 /**
- * CarePath — Care Manager right-hand workspace.
- * Reminders, appointments and tasks are all derived from live backend data.
+ * CarePath — Care Manager Right Rail
+ *
+ * A real-data quick-overview panel for the dashboard. Every number and row
+ * comes from the live backend — nothing is hardcoded or mocked.
+ *
+ * Sections:
+ *  1. Live stats strip          — key numbers at a glance
+ *  2. Critical alerts           — high-risk + emergency flags from analytics
+ *  3. High-risk patients        — top scored patients needing action
+ *  4. Upcoming appointments     — from post-discharge agent per patient
+ *  5. Pending tasks             — from care-plan task lists
+ *  6. Mini calendar             — appointment days highlighted
  */
 
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { CareManagerData, DerivedTask } from '../../hooks/useCareManagerData';
+import type { CareManagerData, DerivedTask, DerivedAppointment } from '../../hooks/useCareManagerData';
 import { Skeleton, EmptyState } from '../ui/States';
+import RiskBadge from '../ui/RiskBadge';
 import { useToast } from '../ui/Toast';
 
-function formatTime(raw: string): { time: string; day: string } {
+/* ── Helpers ── */
+function fmtDate(raw: string): { time: string; day: string } {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return { time: raw, day: '' };
-
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-  const day = sameDay(d, today)
-    ? 'Today'
-    : sameDay(d, tomorrow)
-      ? 'Tomorrow'
-      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
+  const same = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const day = same(d, today) ? 'Today' : same(d, tomorrow) ? 'Tomorrow' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   return { time, day };
 }
 
+function timeAgo(raw: string | null | undefined): string {
+  if (!raw) return 'Never';
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  return `${days}d ago`;
+}
+
+/* ══════════════════════════════════════════════
+   Main Rail
+══════════════════════════════════════════════ */
 export default function CareManagerRail({ data }: { data: CareManagerData }) {
   const navigate = useNavigate();
   const toast = useToast();
-  const { analytics, tasks, appointments, loading, enrichedAttempted } = data;
+  const { analytics, enriched, tasks, appointments, loading, enrichedAttempted } = data;
 
-  /** Local completion state — the backend exposes no task mutation endpoint. */
+  /* ── Local task toggle (UI only — no backend task mutation endpoint) ── */
   const [localDone, setLocalDone] = useState<Record<string, boolean>>({});
-
-  const reminders = useMemo(() => {
-    if (!analytics) return [];
-    const list: { icon: string; tone: string; text: string; when: string; go?: () => void }[] = [];
-
-    if (analytics.high_risk_patients > 0) {
-      list.push({
-        icon: '⚠',
-        tone: 'warn',
-        text: `${analytics.high_risk_patients} high-risk patient${analytics.high_risk_patients === 1 ? '' : 's'} need review`,
-        when: 'Today',
-        go: () => navigate('/care-manager/readmission?risk=high'),
-      });
-    }
-    if (analytics.post_discharge_active_monitors > 0) {
-      list.push({
-        icon: '☎',
-        tone: 'ok',
-        text: `${analytics.post_discharge_active_monitors} post-discharge monitor${analytics.post_discharge_active_monitors === 1 ? '' : 's'} active`,
-        when: 'Today',
-        go: () => navigate('/care-manager/post-discharge'),
-      });
-    }
-    if (appointments.length > 0) {
-      list.push({
-        icon: '▣',
-        tone: 'info',
-        text: `${appointments.length} appointment${appointments.length === 1 ? '' : 's'} to prepare for`,
-        when: 'Today',
-        go: () => navigate('/care-manager/post-discharge'),
-      });
-    }
-    if (analytics.emergency_alerts_triggered > 0) {
-      list.push({
-        icon: '✚',
-        tone: 'warn',
-        text: `${analytics.emergency_alerts_triggered} emergency alert${analytics.emergency_alerts_triggered === 1 ? '' : 's'} triggered`,
-        when: 'Review',
-        go: () => navigate('/care-manager/analytics'),
-      });
-    }
-    return list;
-  }, [analytics, appointments, navigate]);
-
-  const openTasks = useMemo(
-    () => tasks.filter((t) => (localDone[t.id] ?? t.status === 'completed') === false),
-    [tasks, localDone],
-  );
-  const doneTasks = useMemo(
-    () => tasks.filter((t) => (localDone[t.id] ?? t.status === 'completed') === true),
-    [tasks, localDone],
-  );
-
   const toggleTask = (t: DerivedTask) => {
     const currently = localDone[t.id] ?? t.status === 'completed';
-    setLocalDone((prev) => ({ ...prev, [t.id]: !currently }));
-    // Be explicit that this is not persisted — no backend task endpoint exists.
+    setLocalDone(prev => ({ ...prev, [t.id]: !currently }));
     toast.notify(
-      !currently
-        ? 'Marked complete for this session only (no task API on the backend yet).'
-        : 'Reopened for this session only.',
+      !currently ? 'Marked complete for this session.' : 'Reopened for this session.',
       'info',
     );
   };
 
+  /* ── Derived values ── */
+  const highRiskPatients = useMemo(
+    () => enriched.filter(p => (p.riskScore ?? 0) >= 0.7).slice(0, 5),
+    [enriched],
+  );
+
+  const pendingTasks = useMemo(
+    () => tasks.filter(t => !(localDone[t.id] ?? t.status === 'completed')),
+    [tasks, localDone],
+  );
+  const completedTasks = useMemo(
+    () => tasks.filter(t => localDone[t.id] ?? t.status === 'completed'),
+    [tasks, localDone],
+  );
+  const taskCompletionPct = tasks.length > 0
+    ? Math.round((completedTasks.length / tasks.length) * 100)
+    : null;
+
+  const nextAppts = useMemo(
+    () => [...appointments].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 4),
+    [appointments],
+  );
+
+  /* ── Alerts built entirely from analytics fields ── */
+  const alerts = useMemo(() => {
+    if (!analytics) return [];
+    const list: { icon: string; tone: 'red' | 'amber' | 'blue'; text: string; go: () => void }[] = [];
+    if (analytics.high_risk_patients > 0) {
+      list.push({
+        icon: '🚨',
+        tone: 'red',
+        text: `${analytics.high_risk_patients} high-risk patient${analytics.high_risk_patients !== 1 ? 's' : ''} need review`,
+        go: () => navigate('/care-manager/readmission?risk=high'),
+      });
+    }
+    if (analytics.emergency_alerts_triggered > 0) {
+      list.push({
+        icon: '🚑',
+        tone: 'red',
+        text: `${analytics.emergency_alerts_triggered} emergency alert${analytics.emergency_alerts_triggered !== 1 ? 's' : ''} triggered`,
+        go: () => navigate('/care-manager/readmission'),
+      });
+    }
+    if (analytics.medium_risk_patients > 0) {
+      list.push({
+        icon: '⚠️',
+        tone: 'amber',
+        text: `${analytics.medium_risk_patients} medium-risk patient${analytics.medium_risk_patients !== 1 ? 's' : ''} to monitor`,
+        go: () => navigate('/care-manager/readmission?risk=medium'),
+      });
+    }
+    if (analytics.post_discharge_active_monitors > 0) {
+      list.push({
+        icon: '📋',
+        tone: 'blue',
+        text: `${analytics.post_discharge_active_monitors} active post-discharge monitor${analytics.post_discharge_active_monitors !== 1 ? 's' : ''}`,
+        go: () => navigate('/care-manager/post-discharge'),
+      });
+    }
+    return list;
+  }, [analytics, navigate]);
+
+  /* ── Render ── */
   return (
     <div className="cmr">
-      {/* ── Reminders ── */}
+
+      {/* ── 1. Live Stats Strip ── */}
+      <section className="cmr-card cmr-stats-strip">
+        <header className="cmr-card__head">
+          <h3 className="cmr-card__title">Quick Overview</h3>
+          {analytics && (
+            <span className="cmr-live-dot" title="Live data">
+              <span className="cmr-live-dot__pulse" />
+              Live
+            </span>
+          )}
+        </header>
+        {loading ? (
+          <div className="cmr-skel"><Skeleton height={48} /></div>
+        ) : (
+          <div className="cmr-stats">
+            <button className="cmr-stat" onClick={() => navigate('/care-manager/patients')}>
+              <span className="cmr-stat__val">{analytics?.active_patients ?? '—'}</span>
+              <span className="cmr-stat__key">Patients</span>
+            </button>
+            <button className="cmr-stat cmr-stat--red" onClick={() => navigate('/care-manager/readmission?risk=high')}>
+              <span className="cmr-stat__val">{analytics?.high_risk_patients ?? '—'}</span>
+              <span className="cmr-stat__key">High Risk</span>
+            </button>
+            <button className="cmr-stat cmr-stat--amber" onClick={() => navigate('/care-manager/readmission?risk=medium')}>
+              <span className="cmr-stat__val">{analytics?.medium_risk_patients ?? '—'}</span>
+              <span className="cmr-stat__key">Medium</span>
+            </button>
+            <button className="cmr-stat cmr-stat--green" onClick={() => navigate('/care-manager/post-discharge')}>
+              <span className="cmr-stat__val">{analytics?.post_discharge_active_monitors ?? '—'}</span>
+              <span className="cmr-stat__key">Monitored</span>
+            </button>
+          </div>
+        )}
+        {/* Readmission rate bar */}
+        {!loading && analytics && (
+          <div className="cmr-ratebar">
+            <span className="cmr-ratebar__label">Readmission rate</span>
+            <div className="cmr-ratebar__track">
+              <div
+                className="cmr-ratebar__fill"
+                style={{ width: `${Math.min(analytics.readmission_rate_pct, 100)}%` }}
+              />
+            </div>
+            <span className="cmr-ratebar__pct">{analytics.readmission_rate_pct.toFixed(1)}%</span>
+          </div>
+        )}
+      </section>
+
+      {/* ── 2. Critical Alerts ── */}
       <section className="cmr-card">
         <header className="cmr-card__head">
-          <h3 className="cmr-card__title">Today's Reminders</h3>
-          <button className="cmr-card__link" onClick={() => navigate('/care-manager/analytics')}>View all</button>
+          <h3 className="cmr-card__title">Alerts</h3>
+          {alerts.length > 0 && (
+            <span className="cmr-badge cmr-badge--red">{alerts.length}</span>
+          )}
         </header>
-
         {loading ? (
           <div className="cmr-skel">
-            <Skeleton height={14} /><Skeleton height={14} width="80%" /><Skeleton height={14} width="65%" />
+            <Skeleton height={14} /><Skeleton height={14} width="80%" />
           </div>
-        ) : reminders.length === 0 ? (
-          <p className="cmr-empty">Nothing needs your attention right now.</p>
+        ) : alerts.length === 0 ? (
+          <p className="cmr-empty">
+            <span style={{ marginRight: 6 }}>✅</span>No critical alerts right now.
+          </p>
         ) : (
-          <ul className="cmr-list">
-            {reminders.map((r, i) => (
+          <ul className="cmr-alertlist">
+            {alerts.map((a, i) => (
               <li key={i}>
-                <button className="cmr-row" onClick={r.go} disabled={!r.go}>
-                  <span className={`cmr-row__icon cmr-row__icon--${r.tone}`} aria-hidden="true">{r.icon}</span>
-                  <span className="cmr-row__text">{r.text}</span>
-                  <span className="cmr-row__when">{r.when}</span>
+                <button className={`cmr-alert cmr-alert--${a.tone}`} onClick={a.go}>
+                  <span className="cmr-alert__icon">{a.icon}</span>
+                  <span className="cmr-alert__text">{a.text}</span>
+                  <svg className="cmr-alert__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M3 6h6M6.5 3.5L9 6l-2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
                 </button>
               </li>
             ))}
@@ -132,71 +215,121 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
         )}
       </section>
 
-      {/* ── Appointments ── */}
+      {/* ── 3. High-Risk Patients ── */}
       <section className="cmr-card">
         <header className="cmr-card__head">
-          <h3 className="cmr-card__title">Upcoming Appointments</h3>
-          <button className="cmr-card__link" onClick={() => navigate('/care-manager/post-discharge')}>View all</button>
+          <h3 className="cmr-card__title">High-Risk Patients</h3>
+          <button
+            className="cmr-card__link"
+            onClick={() => navigate('/care-manager/readmission?risk=high')}
+          >
+            All →
+          </button>
         </header>
 
         {loading || !enrichedAttempted ? (
           <div className="cmr-skel">
-            <Skeleton height={38} /><Skeleton height={38} />
+            <Skeleton height={36} /><Skeleton height={36} /><Skeleton height={36} />
           </div>
-        ) : appointments.length === 0 ? (
-          <p className="cmr-empty">No scheduled appointments returned by the backend.</p>
+        ) : highRiskPatients.length === 0 ? (
+          <p className="cmr-empty">No high-risk patients scored yet.</p>
         ) : (
-          <ul className="cmr-list">
-            {appointments.slice(0, 4).map((a, i) => {
-              const { time, day } = formatTime(a.date);
+          <ul className="cmr-hlist">
+            {highRiskPatients.map(p => (
+              <li key={p.id}>
+                <button
+                  className="cmr-hrow"
+                  onClick={() => navigate(`/care-manager/patients/${p.id}`)}
+                >
+                  <span className="cmr-hrow__avatar">{p.name?.[0]?.toUpperCase() ?? 'P'}</span>
+                  <span className="cmr-hrow__info">
+                    <span className="cmr-hrow__name">{p.name}</span>
+                    <span className="cmr-hrow__meta">
+                      {p.age}y · {timeAgo(p.lastActivityAt)}
+                    </span>
+                  </span>
+                  <RiskBadge score={p.riskScore} showScore />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ── 4. Upcoming Appointments ── */}
+      <section className="cmr-card">
+        <header className="cmr-card__head">
+          <h3 className="cmr-card__title">Appointments</h3>
+          <button className="cmr-card__link" onClick={() => navigate('/care-manager/post-discharge')}>View all</button>
+        </header>
+
+        <MiniCalendar appointments={appointments} />
+
+        {loading || !enrichedAttempted ? (
+          <div className="cmr-skel" style={{ marginTop: 10 }}>
+            <Skeleton height={36} /><Skeleton height={36} />
+          </div>
+        ) : nextAppts.length === 0 ? (
+          <p className="cmr-empty" style={{ marginTop: 10 }}>No scheduled appointments from backend.</p>
+        ) : (
+          <ul className="cmr-list" style={{ marginTop: 10 }}>
+            {nextAppts.map((a, i) => {
+              const { time, day } = fmtDate(a.date);
               return (
                 <li key={`${a.patientId}-${i}`}>
                   <button className="cmr-appt" onClick={() => navigate('/care-manager/post-discharge')}>
-                    <span className="cmr-appt__time">
-                      <strong>{time}</strong>
+                    <span className="cmr-appt__dayblock">
+                      <span className="cmr-appt__day">{day}</span>
+                      <span className="cmr-appt__time">{time}</span>
                     </span>
                     <span className="cmr-appt__info">
                       <span className="cmr-appt__name">{a.patientName}</span>
                       <span className="cmr-appt__kind">{a.kind}</span>
                     </span>
-                    <span className="cmr-row__when">{day}</span>
                   </button>
                 </li>
               );
             })}
           </ul>
         )}
-
-        <button className="cmr-card__cta" onClick={() => navigate('/care-manager/post-discharge')}>
-          Go to post discharge →
-        </button>
       </section>
 
-      {/* ── Tasks ── */}
+      {/* ── 5. Tasks ── */}
       <section className="cmr-card">
         <header className="cmr-card__head">
-          <h3 className="cmr-card__title">My Tasks</h3>
-          <span className="cmr-card__count">{openTasks.length} open</span>
+          <h3 className="cmr-card__title">Care Plan Tasks</h3>
+          <span className="cmr-card__count">
+            {completedTasks.length}/{tasks.length} done
+          </span>
         </header>
 
+        {/* Progress bar */}
+        {tasks.length > 0 && (
+          <div className="cmr-taskprog">
+            <div
+              className="cmr-taskprog__fill"
+              style={{ width: `${taskCompletionPct ?? 0}%` }}
+            />
+            <span className="cmr-taskprog__pct">{taskCompletionPct ?? 0}%</span>
+          </div>
+        )}
+
         {loading || !enrichedAttempted ? (
-          <div className="cmr-skel">
+          <div className="cmr-skel" style={{ marginTop: 8 }}>
             <Skeleton height={14} /><Skeleton height={14} width="75%" />
           </div>
         ) : tasks.length === 0 ? (
-          <EmptyState
-            compact
-            icon="✅"
-            title="No care-plan tasks"
-            message="The post-discharge agents have not returned any tasks yet."
-          />
+          <EmptyState compact icon="✅" title="No tasks" message="No care-plan tasks returned yet." />
         ) : (
           <ul className="cmr-tasks">
-            {[...openTasks, ...doneTasks].slice(0, 6).map((t) => {
+            {[...pendingTasks, ...completedTasks].slice(0, 6).map(t => {
               const done = localDone[t.id] ?? t.status === 'completed';
               return (
                 <li key={t.id}>
-                  <button className={`cmr-task${done ? ' cmr-task--done' : ''}`} onClick={() => toggleTask(t)}>
+                  <button
+                    className={`cmr-task${done ? ' cmr-task--done' : ''}`}
+                    onClick={() => toggleTask(t)}
+                  >
                     <span className={`cmr-task__box${done ? ' cmr-task__box--on' : ''}`} aria-hidden="true">
                       {done ? '✓' : ''}
                     </span>
@@ -208,21 +341,113 @@ export default function CareManagerRail({ data }: { data: CareManagerData }) {
                 </li>
               );
             })}
+            {tasks.length > 6 && (
+              <li>
+                <p className="cmr-tasks__more">+{tasks.length - 6} more tasks</p>
+              </li>
+            )}
           </ul>
         )}
       </section>
 
-      {/* ── Operational tip (no clinical claims) ── */}
-      <section className="cmr-tip">
-        <span className="cmr-tip__icon" aria-hidden="true">💡</span>
-        <div>
-          <p className="cmr-tip__title">Care Manager Tip</p>
-          <p className="cmr-tip__body">
-            Run a readmission prediction after updating a patient's record so the risk
-            score reflects the latest clinical data.
+      {/* ── 6. System pulse (real numbers only) ── */}
+      {!loading && analytics && (
+        <section className="cmr-card cmr-pulse">
+          <header className="cmr-card__head">
+            <h3 className="cmr-card__title">System Pulse</h3>
+          </header>
+          <ul className="cmr-pulse__list">
+            <li className="cmr-pulse__row">
+              <span>Safety evaluations</span>
+              <strong>{analytics.total_safety_evaluations.toLocaleString()}</strong>
+            </li>
+            <li className="cmr-pulse__row">
+              <span>Emergency alerts</span>
+              <strong className={analytics.emergency_alerts_triggered > 0 ? 'cmr-pulse__warn' : ''}>
+                {analytics.emergency_alerts_triggered}
+              </strong>
+            </li>
+            <li className="cmr-pulse__row">
+              <span>Active monitors</span>
+              <strong>{analytics.post_discharge_active_monitors}</strong>
+            </li>
+            <li className="cmr-pulse__row">
+              <span>Low risk patients</span>
+              <strong className="cmr-pulse__ok">{analytics.low_risk_patients}</strong>
+            </li>
+          </ul>
+          <p className="cmr-pulse__ts">
+            Last synced {new Date(analytics.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
           </p>
-        </div>
-      </section>
+        </section>
+      )}
+
+    </div>
+  );
+}
+
+/* ── Mini Calendar ───────────────────────────────────────────────────────── */
+function MiniCalendar({ appointments }: { appointments: DerivedAppointment[] }) {
+  const [month, setMonth] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
+
+  const today = new Date();
+  const year = month.getFullYear();
+  const mo = month.getMonth();
+  const daysInMonth = new Date(year, mo + 1, 0).getDate();
+  const firstDow = new Date(year, mo, 1).getDay();
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const apptDays = new Set<number>();
+  for (const a of appointments) {
+    const d = new Date(a.date);
+    if (!Number.isNaN(d.getTime()) && d.getFullYear() === year && d.getMonth() === mo) {
+      apptDays.add(d.getDate());
+    }
+  }
+
+  const isToday = (day: number) =>
+    today.getFullYear() === year && today.getMonth() === mo && today.getDate() === day;
+
+  return (
+    <div className="cmr-cal">
+      <div className="cmr-cal__nav">
+        <button className="cmr-cal__navbtn" onClick={() => setMonth(new Date(year, mo - 1, 1))} aria-label="Previous month">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 3L5 7l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <span className="cmr-cal__month">{monthLabel}</span>
+        <button className="cmr-cal__navbtn" onClick={() => setMonth(new Date(year, mo + 1, 1))} aria-label="Next month">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+      <div className="cmr-cal__header">
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+          <span key={d} className="cmr-cal__dow">{d}</span>
+        ))}
+      </div>
+      <div className="cmr-cal__grid">
+        {Array.from({ length: firstDow }).map((_, i) => (
+          <span key={`e${i}`} className="cmr-cal__cell" />
+        ))}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1;
+          return (
+            <span
+              key={day}
+              className={[
+                'cmr-cal__cell',
+                isToday(day) ? 'cmr-cal__cell--today' : '',
+                apptDays.has(day) ? 'cmr-cal__cell--appt' : '',
+              ].filter(Boolean).join(' ')}
+            >
+              {day}
+              {apptDays.has(day) && <span className="cmr-cal__dot" />}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }

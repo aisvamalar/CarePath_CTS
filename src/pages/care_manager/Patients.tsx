@@ -4,13 +4,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import CareManagerLayout from '../../components/care_manager/CareManagerLayout';
-import PatientForm, {
-  emptyPatientForm, fromPatient, toPayload, validate,
-  type PatientFormValues,
-} from '../../components/care_manager/PatientForm';
-import Modal, { ConfirmDialog } from '../../components/ui/Modal';
+import { ConfirmDialog } from '../../components/ui/Modal';
 import RiskBadge, { riskFromScore } from '../../components/ui/RiskBadge';
 import { ErrorState, EmptyState, SkeletonTable, Skeleton } from '../../components/ui/States';
 import { useToast } from '../../components/ui/Toast';
@@ -25,7 +21,6 @@ const PAGE_SIZE = 12;
 export default function PatientsPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [params, setParams] = useSearchParams();
 
   const [rows, setRows] = useState<PatientListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,13 +35,8 @@ export default function PatientsPage() {
   const scoreReqs = useRef<Set<string>>(new Set());
 
   // Dialog state
-  const [createOpen, setCreateOpen] = useState(params.get('new') === '1');
-  const [editTarget, setEditTarget] = useState<PatientListItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PatientListItem | null>(null);
   const [busy, setBusy] = useState(false);
-  const [formValues, setFormValues] = useState<PatientFormValues>(emptyPatientForm);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [editInitial, setEditInitial] = useState<PatientFormValues | null>(null);
   const [predicting, setPredicting] = useState<string | null>(null);
 
   // ── Load roster ──
@@ -137,75 +127,8 @@ export default function PatientsPage() {
     };
   }, [rows]);
 
-  // ── Create ──
-  const openCreate = () => {
-    setFormValues(emptyPatientForm);
-    setFormErrors({});
-    setEditInitial(null);
-    setCreateOpen(true);
-  };
-
-  const closeCreate = () => {
-    setCreateOpen(false);
-    if (params.get('new')) {
-      params.delete('new');
-      setParams(params, { replace: true });
-    }
-  };
-
-  const submitCreate = async () => {
-    const errs = validate(formValues);
-    setFormErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-
-    setBusy(true);
-    try {
-      const created = await ehrService.create(toPayload(formValues));
-      toast.success(`${created.name} created — MRN ${created.mrn}`);
-      closeCreate();
-      await load();
-    } catch (err) {
-      toast.error(toApiError(err).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // ── Update ──
-  const openEdit = async (p: PatientListItem) => {
-    setEditTarget(p);
-    setEditInitial(null);
-    setFormErrors({});
-    try {
-      const detail = await ehrService.getById(p.id);
-      const vals = fromPatient(detail);
-      setEditInitial(vals);
-      setFormValues(vals);
-    } catch (err) {
-      toast.error(toApiError(err).message);
-      setEditTarget(null);
-    }
-  };
-
-  const submitEdit = async () => {
-    if (!editTarget) return;
-    const errs = validate(formValues);
-    setFormErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-
-    setBusy(true);
-    try {
-      await ehrService.update(editTarget.id, toPayload(formValues));
-      toast.success('Patient updated successfully');
-      setEditTarget(null);
-      setEditInitial(null);
-      await load();
-    } catch (err) {
-      toast.error(toApiError(err).message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  // ── Create — navigate to dedicated page ──
+  const openCreate = () => navigate('/care-manager/patients/new');
 
   // ── Delete ──
   const submitDelete = async () => {
@@ -367,7 +290,7 @@ export default function PatientsPage() {
                             >
                               {predicting === p.patient_id ? <><span className="cp-btn__spinner" /> …</> : 'Predict'}
                             </button>
-                            <button className="cp-btn cp-btn--sm cp-btn--ghost" onClick={() => openEdit(p)}>
+                            <button className="cp-btn cp-btn--sm cp-btn--ghost" onClick={() => navigate(`/care-manager/patients/${p.id}/edit`)}>
                               Update
                             </button>
                             <button
@@ -409,7 +332,7 @@ export default function PatientsPage() {
                       <button className="cp-btn cp-btn--sm cp-btn--primary" onClick={() => runPredict(p)} disabled={predicting === p.patient_id}>
                         {predicting === p.patient_id ? 'Predicting…' : 'Predict'}
                       </button>
-                      <button className="cp-btn cp-btn--sm cp-btn--ghost" onClick={() => openEdit(p)}>Update</button>
+                      <button className="cp-btn cp-btn--sm cp-btn--ghost" onClick={() => navigate(`/care-manager/patients/${p.id}/edit`)}>Update</button>
                       <button className="cp-btn cp-btn--sm cp-btn--dangerghost" onClick={() => setDeleteTarget(p)}>Delete</button>
                     </div>
                   </div>
@@ -431,55 +354,6 @@ export default function PatientsPage() {
           </>
         )}
       </section>
-
-      {/* ── Create modal ── */}
-      <Modal
-        open={createOpen}
-        title="Create Patient"
-        subtitle="Register a new patient record. MRN is generated automatically."
-        onClose={closeCreate}
-        width={720}
-        footer={
-          <>
-            <button className="cp-btn cp-btn--ghost" onClick={closeCreate} disabled={busy}>Cancel</button>
-            <button className="cp-btn cp-btn--primary" onClick={submitCreate} disabled={busy}>
-              {busy ? <><span className="cp-btn__spinner" /> Creating…</> : 'Create Patient'}
-            </button>
-          </>
-        }
-      >
-        <PatientForm errors={formErrors} onChange={setFormValues} />
-      </Modal>
-
-      {/* ── Edit modal ── */}
-      <Modal
-        open={Boolean(editTarget)}
-        title={`Update ${editTarget?.name ?? 'Patient'}`}
-        subtitle={editTarget ? `MRN ${editTarget.mrn}` : undefined}
-        onClose={() => { setEditTarget(null); setEditInitial(null); }}
-        width={720}
-        footer={
-          <>
-            <button className="cp-btn cp-btn--ghost" onClick={() => { setEditTarget(null); setEditInitial(null); }} disabled={busy}>
-              Cancel
-            </button>
-            <button className="cp-btn cp-btn--primary" onClick={submitEdit} disabled={busy || !editInitial}>
-              {busy ? <><span className="cp-btn__spinner" /> Saving…</> : 'Save changes'}
-            </button>
-          </>
-        }
-      >
-        {editInitial ? (
-          <PatientForm key={editTarget?.id} initial={editInitial} errors={formErrors} onChange={setFormValues} />
-        ) : (
-          <div className="pf__loading">
-            <Skeleton height={14} width="40%" />
-            <Skeleton height={38} />
-            <Skeleton height={38} />
-            <Skeleton height={38} width="70%" />
-          </div>
-        )}
-      </Modal>
 
       {/* ── Delete confirm ── */}
       <ConfirmDialog

@@ -6,7 +6,7 @@
 import React from 'react';
 import { Skeleton } from './States';
 
-export type KpiTone = 'coral' | 'rose' | 'peach' | 'neutral';
+export type KpiTone = 'coral' | 'rose' | 'peach' | 'neutral' | 'dark';
 
 export default function KpiCard({
   icon,
@@ -62,10 +62,10 @@ export default function KpiCard({
 
   if (interactive) {
     return (
-      <button type="button" className="kpi kpi--interactive" onClick={onClick} aria-label={`${label}. View details`}>
+      <button type="button" className={`kpi kpi--interactive${tone === 'dark' ? ' kpi--dark' : ''}`} onClick={onClick} aria-label={`${label}. View details`}>
         {body}
       </button>
     );
   }
-  return <div className="kpi">{body}</div>;
+  return <div className={`kpi${tone === 'dark' ? ' kpi--dark' : ''}`}>{body}</div>;
 }

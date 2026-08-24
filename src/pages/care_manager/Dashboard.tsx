@@ -145,10 +145,10 @@ export default function CareManagerDashboard() {
         />
       )}
 
-      {/* ── KPI row ── */}
-      <div className="cmp-kpis">
+      {/* ── KPI rows: 4 on top, rest below ── */}
+      <div className="cmp-kpis cmp-kpis--dark-4">
         <KpiCard
-          tone="coral"
+          tone="dark"
           loading={loading}
           label="Active Patients"
           value={analytics?.active_patients ?? null}
@@ -157,7 +157,7 @@ export default function CareManagerDashboard() {
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="7" cy="6" r="2.7" stroke="currentColor" strokeWidth="1.5"/><path d="M1.8 15c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M12.6 4.2a2.5 2.5 0 010 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>}
         />
         <KpiCard
-          tone="rose"
+          tone="dark"
           loading={loading}
           label="High Risk Patients"
           value={analytics?.high_risk_patients ?? null}
@@ -166,7 +166,7 @@ export default function CareManagerDashboard() {
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2.4l6.6 12H2.4L9 2.4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M9 7v3.2M9 12.4h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         />
         <KpiCard
-          tone="coral"
+          tone="dark"
           loading={loading}
           label="Readmission Risk"
           value={analytics ? `${analytics.readmission_rate_pct.toFixed(1)}%` : null}
@@ -175,7 +175,7 @@ export default function CareManagerDashboard() {
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2.6 11.4l3.5-4 3 2.6 3-4.1 3.4 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>}
         />
         <KpiCard
-          tone="peach"
+          tone="dark"
           loading={loading || !enrichedAttempted}
           label="Appointments"
           value={followUpsDue}
@@ -183,8 +183,11 @@ export default function CareManagerDashboard() {
           onClick={() => navigate('/care-manager/post-discharge')}
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2.4" y="3.4" width="13.2" height="12" rx="1.8" stroke="currentColor" strokeWidth="1.5"/><path d="M5.6 1.9v2.8M12.4 1.9v2.8M2.4 7.6h13.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         />
+      </div>
+
+      <div className="cmp-kpis cmp-kpis--dark-3">
         <KpiCard
-          tone="neutral"
+          tone="dark"
           loading={loading || !enrichedAttempted}
           label="Tasks Pending"
           value={tasksPending}
@@ -192,13 +195,12 @@ export default function CareManagerDashboard() {
           onClick={() => navigate('/care-manager/post-discharge')}
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M2.8 5.4l1.6 1.6 2.6-2.6M2.8 12.4l1.6 1.6 2.6-2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M9.6 5.6h5.6M9.6 12.6h5.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>}
         />
-        {/* Financial KPIs */}
         <KpiCard
-          tone="coral"
+          tone="dark"
           loading={financial.loading}
           label="Total Cost Savings"
           value={
-            financial.metrics 
+            financial.metrics
               ? (() => {
                   const savings = parseFloat(financial.metrics.total_savings);
                   if (savings === 0) return '$0';
@@ -213,7 +215,7 @@ export default function CareManagerDashboard() {
           icon={<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1.8v14.4M9 1.8l5.4 5.4M9 1.8L3.6 7.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
         />
         <KpiCard
-          tone="peach"
+          tone="dark"
           loading={financial.loading}
           label="ROI"
           value={
@@ -349,19 +351,19 @@ export default function CareManagerDashboard() {
 
       {/* ── Analytics row ── */}
       <div className="cmp-analytics">
-        {/* Workload */}
-        <section className="cmp-card">
+        {/* Workload donut */}
+        <section className="cmp-card cmp-card--analytics">
           <header className="cmp-card__head">
             <h3 className="cmp-card__title">Care Plan Workload</h3>
           </header>
           {loading || !enrichedAttempted ? (
-            <Skeleton height={170} />
+            <Skeleton height={180} />
           ) : workload.total === 0 ? (
             <EmptyState compact icon="📋" title="No task data" message="No care-plan tasks returned." />
           ) : (
-            <div className="cmp-donutwrap">
-              <div className="cmp-donut">
-                <ResponsiveContainer width={170} height={170}>
+            <div className="cmp-donutwrap cmp-donutwrap--center">
+              <div className="cmp-donut cmp-donut--lg">
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie
                       data={workload.slices}
@@ -369,9 +371,9 @@ export default function CareManagerDashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={52}
-                      outerRadius={DONUT_OUTER}
-                      paddingAngle={2}
+                      innerRadius={58}
+                      outerRadius={82}
+                      paddingAngle={3}
                       stroke="none"
                     >
                       {workload.slices.map((s) => <Cell key={s.name} fill={s.color} />)}
@@ -396,34 +398,37 @@ export default function CareManagerDashboard() {
           )}
         </section>
 
-        {/* Registrations */}
-        <section className="cmp-card">
+        {/* Registrations line chart */}
+        <section className="cmp-card cmp-card--analytics">
           <header className="cmp-card__head">
             <h3 className="cmp-card__title">New Registrations</h3>
             <span className="cmp-card__tag">Last 7 days</span>
           </header>
           {loading ? (
-            <Skeleton height={170} />
+            <Skeleton height={180} />
           ) : !hasAnyRegistration ? (
-            <EmptyState compact icon="📈" title="No registrations" message="No patients were registered in the last 7 days." />
+            <EmptyState compact icon="📈" title="No registrations" message="No patients registered in the last 7 days." />
           ) : (
-            <div style={{ width: '100%', height: 170 }}>
-              <ResponsiveContainer>
-                <LineChart data={registrationTrend} margin={{ top: 12, right: 16, bottom: 8, left: -20 }}>
+            <div className="cmp-chart-wrap">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={registrationTrend}
+                  margin={{ top: 8, right: 12, bottom: 4, left: 0 }}
+                >
                   <CartesianGrid stroke="rgba(242,132,107,0.12)" strokeDasharray="3 3" vertical={false} />
-                  <XAxis 
-                    dataKey="label" 
-                    tick={{ fontSize: 11, fill: '#a8a8a8' }} 
-                    axisLine={false} 
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
+                    axisLine={false}
                     tickLine={false}
-                    height={20}
+                    height={22}
                   />
-                  <YAxis 
-                    tick={{ fontSize: 11, fill: '#a8a8a8' }} 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#a8a8a8' }}
+                    axisLine={false}
+                    tickLine={false}
                     allowDecimals={false}
-                    width={30}
+                    width={28}
                   />
                   <Tooltip content={<ChartTip suffix=" patients" />} />
                   <Line
@@ -440,20 +445,20 @@ export default function CareManagerDashboard() {
           )}
         </section>
 
-        {/* Risk distribution */}
-        <section className="cmp-card">
+        {/* Risk distribution donut */}
+        <section className="cmp-card cmp-card--analytics">
           <header className="cmp-card__head">
             <h3 className="cmp-card__title">Risk Distribution</h3>
             <button className="cmp-card__link" onClick={() => navigate('/care-manager/analytics')}>Details</button>
           </header>
           {loading ? (
-            <Skeleton height={170} />
+            <Skeleton height={180} />
           ) : riskSlices.length === 0 ? (
             <EmptyState compact icon="🧭" title="No risk data" message="Run predictions to populate risk levels." />
           ) : (
-            <div className="cmp-donutwrap">
-              <div className="cmp-donut">
-                <ResponsiveContainer width={170} height={170}>
+            <div className="cmp-donutwrap cmp-donutwrap--center">
+              <div className="cmp-donut cmp-donut--lg">
+                <ResponsiveContainer width="100%" height={180}>
                   <PieChart>
                     <Pie
                       data={riskSlices}
@@ -461,9 +466,9 @@ export default function CareManagerDashboard() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={52}
-                      outerRadius={DONUT_OUTER}
-                      paddingAngle={2}
+                      innerRadius={58}
+                      outerRadius={82}
+                      paddingAngle={3}
                       stroke="none"
                     >
                       {riskSlices.map((s, i) => <Cell key={s.name} fill={s.color ?? PLAN_COLORS[i]} />)}
