@@ -26,8 +26,6 @@ const RISK_COLORS = {
 
 const PLAN_COLORS = ['#f2846b', '#f5a08a', '#7cc4a4', '#d9d4d1'];
 
-const DONUT_OUTER = 74;
-
 type AttentionFilter = 'high' | 'monitoring' | 'all';
 
 export default function CareManagerDashboard() {
@@ -74,21 +72,6 @@ export default function CareManagerDashboard() {
     monitoring: enriched.filter((p) => (p.riskScore ?? 0) >= 0.4 && (p.riskScore ?? 0) < 0.7).length,
     all: enriched.length,
   }), [enriched]);
-
-  // ── Workload donut from real care-plan tasks ──
-  const workload = useMemo(() => {
-    const completed = tasks.filter((t) => t.status === 'completed').length;
-    const pending = tasks.filter((t) => t.status !== 'completed').length;
-    const total = completed + pending;
-    return {
-      total,
-      pct: total > 0 ? Math.round((completed / total) * 100) : null,
-      slices: [
-        { name: 'Completed', value: completed, color: '#7cc4a4' },
-        { name: 'Pending', value: pending, color: '#f5a08a' },
-      ].filter((s) => s.value > 0),
-    };
-  }, [tasks]);
 
   // ── Risk distribution donut from aggregate analytics ──
   /**

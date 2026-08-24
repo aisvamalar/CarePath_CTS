@@ -3,10 +3,11 @@
  * Full CRUD against /api/v1/ehr/patients plus readmission prediction.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CareManagerLayout from '../../components/care_manager/CareManagerLayout';
 import { ConfirmDialog } from '../../components/ui/Modal';
+import KpiCard from '../../components/ui/KpiCard';
 import RiskBadge, { riskFromScore } from '../../components/ui/RiskBadge';
 import { ErrorState, EmptyState, SkeletonTable, Skeleton } from '../../components/ui/States';
 import { useToast } from '../../components/ui/Toast';
@@ -174,9 +175,44 @@ export default function PatientsPage() {
 
       {/* Summary */}
       <div className="cmp-kpis cmp-kpis--three">
-        <SummaryCard tone="coral" label="Total Patients" value={summary.total} hint="All registered" loading={loading} />
-        <SummaryCard tone="rose" label="New This Month" value={summary.newThisMonth} hint="Last 30 days" loading={loading} />
-        <SummaryCard tone="peach" label="Active Records" value={summary.active} hint="Currently active" loading={loading} />
+        {/* icons differ per metric so the three cards are distinguishable at a glance */}
+        <SummaryCard
+          label="Total Patients"
+          value={summary.total}
+          hint="All registered"
+          loading={loading}
+          icon={
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="7" cy="6" r="2.7" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M1.8 15c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M12.6 4.2a2.5 2.5 0 010 4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          }
+        />
+        <SummaryCard
+          label="New This Month"
+          value={summary.newThisMonth}
+          hint="Last 30 days"
+          loading={loading}
+          icon={
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <rect x="2.4" y="3.4" width="13.2" height="12" rx="1.8" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5.6 1.9v2.8M12.4 1.9v2.8M2.4 7.6h13.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M9 10v3.2M7.4 11.6h3.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+          }
+        />
+        <SummaryCard
+          label="Active Records"
+          value={summary.active}
+          hint="Currently active"
+          loading={loading}
+          icon={
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M1.8 9h2.4l1.5-4.2 2.4 8.4 2-6 1.4 3h2.7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          }
+        />
       </div>
 
       <section className="cmp-panel">
@@ -370,28 +406,20 @@ export default function PatientsPage() {
   );
 }
 
+/**
+ * Thin wrapper over the shared KpiCard so this page picks up the same card
+ * layout as the dashboard instead of maintaining its own copy of the markup.
+ */
 function SummaryCard({
-  label, value, hint, tone, loading,
+  label, value, hint, icon, loading,
 }: {
   label: string;
   value: number;
   hint: string;
-  tone: 'coral' | 'rose' | 'peach';
+  icon: ReactNode;
   loading: boolean;
 }) {
   return (
-    <div className="kpi">
-      <span className={`kpi__icon kpi__icon--${tone}`} aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-          <circle cx="7" cy="6" r="2.7" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M1.8 15c0-2.9 2.3-4.6 5.2-4.6s5.2 1.7 5.2 4.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-      </span>
-      <span className="kpi__body">
-        <span className="kpi__label">{label}</span>
-        {loading ? <Skeleton height={26} width="50%" /> : <span className="kpi__value">{value.toLocaleString()}</span>}
-        <span className="kpi__hint">{hint}</span>
-      </span>
-    </div>
+    <KpiCard tone="dark" label={label} value={value} hint={hint} icon={icon} loading={loading} />
   );
 }

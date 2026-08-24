@@ -86,7 +86,8 @@ export default function KpiCard({
     </>
   );
 
-  const cls = `kpi${tone === 'dark' ? ' kpi--dark' : ''}${interactive ? ' kpi--interactive' : ''}`;
+  const hasSpark = !loading && !!sparkline && sparkline.length > 1;
+  const cls = `kpi${tone === 'dark' ? ' kpi--dark' : ''}${interactive ? ' kpi--interactive' : ''}${hasSpark ? ' kpi--spark' : ''}`;
 
   if (interactive) {
     return (
